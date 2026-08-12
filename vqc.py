@@ -64,6 +64,8 @@ from qiskit.transpiler import generate_preset_pass_manager
 from qiskit_machine_learning.neural_networks import EstimatorQNN
 from qiskit_machine_learning.connectors import TorchConnector
 
+import torch_statevector
+
 # ---------------------------------------------------------------------------
 # Hyperparameters
 # ---------------------------------------------------------------------------
@@ -147,17 +149,21 @@ class VQCQNetwork(nn.Module):
         n_qubits: int = N_QUBITS,
         n_layers: int = N_LAYERS,
         seed: int | None = None,
-        backend=None,
+        backend="torch",
         shots: int | None = None,
         optimization_level: int = 1,
     ):
         """
         Args:
-            backend: ``None`` runs on the exact statevector simulator. Pass a
-                Qiskit backend (``FakeManilaV2()``, or a real
-                ``QiskitRuntimeService`` backend) to run there instead; the
-                circuit is transpiled for it and the observables are laid out
-                to match.
+            backend: ``"torch"`` (default) executes the circuit in torch and
+                differentiates with autograd — same circuit, same results, but
+                ~1900x faster than parameter shift, which is what makes DQN
+                training feasible. ``"qiskit"`` runs the exact Qiskit
+                statevector simulator. Or pass a Qiskit backend
+                (``FakeManilaV2()``, or a real ``QiskitRuntimeService``
+                backend) to run there instead; the circuit is transpiled for it
+                and the observables are laid out to match.
+                ``check_torch_matches_qiskit()`` asserts the first two agree.
             shots: ``None`` means exact expectation values, which is only
                 possible on the simulator. Any integer adds sampling noise with
                 standard error ~1/sqrt(shots). Ignored-as-exact is impossible on
@@ -171,10 +177,31 @@ class VQCQNetwork(nn.Module):
         qc, x_params, theta_params = build_qnetwork_circuit(n_qubits, n_layers)
         observables = build_observables(n_qubits)
 
+        rng = np.random.default_rng(seed)
+        init_theta = rng.uniform(-np.pi, np.pi, size=len(theta_params))
+
+        # Input scaling, one per (layer, feature). Starts at 1.0 so the initial
+        # encoding angle is just the observation itself.
+        self.input_scale = nn.Parameter(torch.ones(n_layers, n_qubits))
+        # Output scaling, one per action. Lets Q-values leave [-1, 1].
+        self.output_scale = nn.Parameter(torch.ones(N_ACTIONS))
+        self.backend = backend
+        self.circuit = qc
+
+        if backend == "torch":
+            # Compiled from the Qiskit circuit above, so the ansatz has exactly
+            # one definition regardless of which backend runs it.
+            self._ops = torch_statevector.compile_circuit(qc, theta_params, x_params)
+            self.register_buffer(
+                "_obs", torch_statevector.compile_observables(observables, n_qubits))
+            self.theta = nn.Parameter(torch.tensor(init_theta, dtype=torch.float32))
+            self.qlayer = None
+            return
+
         # precision is the estimator's target standard error; 0.0 means exact.
         precision = 0.0 if shots is None else 1.0 / np.sqrt(shots)
 
-        if backend is None:
+        if backend == "qiskit":
             estimator = StatevectorEstimator(seed=seed)
         else:
             pm = generate_preset_pass_manager(
@@ -188,9 +215,7 @@ class VQCQNetwork(nn.Module):
             estimator = BackendEstimatorV2(backend=backend)
             if shots is None:
                 precision = 1.0 / np.sqrt(1024)  # hardware can never be exact
-
-        self.backend = backend
-        self.circuit = qc
+            self.circuit = qc
 
         qnn = EstimatorQNN(
             circuit=qc,
@@ -206,15 +231,7 @@ class VQCQNetwork(nn.Module):
             estimator=estimator,
         )
 
-        rng = np.random.default_rng(seed)
-        init_theta = rng.uniform(-np.pi, np.pi, size=len(theta_params))
         self.qlayer = TorchConnector(qnn, initial_weights=init_theta)
-
-        # Input scaling, one per (layer, feature). Starts at 1.0 so the initial
-        # encoding is plain arctan of the observation.
-        self.input_scale = nn.Parameter(torch.ones(n_layers, n_qubits))
-        # Output scaling, one per action. Lets Q-values leave [-1, 1].
-        self.output_scale = nn.Parameter(torch.ones(N_ACTIONS))
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
         """``(batch, n_qubits)`` observations -> ``(batch, N_ACTIONS)`` Q-values.
@@ -231,16 +248,54 @@ class VQCQNetwork(nn.Module):
         angles = self.input_scale.unsqueeze(0) * state.unsqueeze(1)  # (B, L, n_qubits)
         angles = angles.reshape(state.shape[0], -1)          # (B, L * n_qubits)
 
-        expectations = self.qlayer(angles)                   # (B, N_ACTIONS), in [-1, 1]
+        if self.backend == "torch":
+            expectations = torch_statevector.run(
+                self._ops, self._obs, self.theta, angles, self.n_qubits)
+        else:
+            expectations = self.qlayer(angles)               # (B, N_ACTIONS), in [-1, 1]
         return expectations * self.output_scale              # unbounded Q-values
 
     def parameter_groups(self, lr_theta=1e-3, lr_input=1e-3, lr_output=1e-1):
         """Optimizer parameter groups with per-group learning rates."""
+        circuit_params = [self.theta] if self.backend == "torch" else list(self.qlayer.parameters())
         return [
-            {"params": self.qlayer.parameters(), "lr": lr_theta},
+            {"params": circuit_params, "lr": lr_theta},
             {"params": [self.input_scale], "lr": lr_input},
             {"params": [self.output_scale], "lr": lr_output},
         ]
+
+
+def check_torch_matches_qiskit(n_layers: int = N_LAYERS, batch: int = 8,
+                               seed: int = 0, tol: float = 1e-5):
+    """Assert the torch backend matches Qiskit in both value and gradient.
+
+    Qiskit is correct by definition; this is what makes the fast path
+    trustworthy. Returns (max output diff, max gradient diff).
+    """
+    torch.manual_seed(seed)
+    qk = VQCQNetwork(n_layers=n_layers, seed=seed, backend="qiskit")
+    tc = VQCQNetwork(n_layers=n_layers, seed=seed, backend="torch")
+
+    with torch.no_grad():   # identical weights, so any difference is the executor
+        tc.theta.copy_(qk.qlayer.weight.detach().float())
+        tc.input_scale.copy_(qk.input_scale.detach())
+        tc.output_scale.copy_(qk.output_scale.detach())
+
+    x = torch.tensor(np.random.default_rng(seed).uniform(-1, 1, (batch, N_QUBITS)),
+                     dtype=torch.float32)
+    out_qk, out_tc = qk(x), tc(x)
+    d_out = float((out_qk - out_tc).abs().max().detach())
+
+    qk.zero_grad(); tc.zero_grad()
+    out_qk.sum().backward(); out_tc.sum().backward()
+    d_grad = max(
+        float((qk.qlayer.weight.grad.float() - tc.theta.grad).abs().max()),
+        float((qk.input_scale.grad - tc.input_scale.grad).abs().max()),
+        float((qk.output_scale.grad - tc.output_scale.grad).abs().max()),
+    )
+    assert d_out < tol, f"outputs diverge from Qiskit by {d_out:.2e}"
+    assert d_grad < tol, f"gradients diverge from Qiskit by {d_grad:.2e}"
+    return d_out, d_grad
 
 
 def main():
