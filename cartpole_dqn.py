@@ -224,7 +224,14 @@ def train(
     target_net.load_state_dict(policy_net.state_dict())
     target_net.eval()
 
-    optimizer = optim.Adam(policy_net.parameters(), lr=lr)
+    # A quantum network needs per-group learning rates: its output scaling has
+    # to grow from 1 to ~100 to reach CartPole-sized Q-values, which a single
+    # small lr cannot do in any reasonable number of steps. Networks that
+    # expose parameter_groups() get to choose; everything else is unchanged.
+    if hasattr(policy_net, "parameter_groups"):
+        optimizer = optim.Adam(policy_net.parameter_groups(lr_theta=lr, lr_input=lr))
+    else:
+        optimizer = optim.Adam(policy_net.parameters(), lr=lr)
     memory = ReplayMemory(replay_capacity)
 
     episode_rewards = []
