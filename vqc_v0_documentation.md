@@ -19,7 +19,6 @@ It is a teaching example. The Q-network used by the CartPole agent lives in `vqc
 - Optimizer: Adam with a learning rate of 0.1
 - Loss function: Binary Cross-Entropy Loss
 - Training duration: 30 epochs
-- Circuit image: regenerated as `vqc_v0_circuit.png` whenever the program runs
 
 ## 2. Program Architecture
 
@@ -35,12 +34,9 @@ The NumPy and PyTorch random seeds are both set to `0`, making the generated dat
 N_QUBITS = 4
 N_LAYERS = 2
 ENTANGLE_MODE = "circular"
-CIRCUIT_IMAGE = "vqc_v0_circuit.png"
 ```
 
 `ENTANGLE_MODE` can be set to either `linear` or `circular`. Circular mode adds a CX gate from the final qubit back to the first qubit in every trainable layer.
-
-`CIRCUIT_IMAGE` defines the output path used by `qc.draw("mpl", ...)`. The diagram embedded in this document is therefore generated directly by the same circuit-construction function used for training.
 
 **Circular is required, not a preference.** A linear chain runs `q0 -> q1 -> q2 -> q3`, so qubit 0 is only ever a control and never a target. Because the output observable is measured on qubit 0, its backward light cone never reaches the upper qubits. Setting `linear` reproduces the original bug.
 
@@ -114,7 +110,7 @@ Running `python vqc_v0.py` regenerates this figure, so it cannot drift from the 
 
 ## 4. Execution Output
 
-Running the current circular `RZ -> RY` model for 30 epochs (Qiskit 2.5.1, Qiskit Machine Learning 0.9.0, and PyTorch 2.13.0) produced the following reproducible output:
+Running the corrected model for 30 epochs (qiskit 2.5.1, qiskit-machine-learning 0.9.0, torch 2.13.0):
 
 ```text
 Epoch  0 | Loss: 0.6741 | Acc: 0.57
