@@ -9,4 +9,3 @@ qiskit-ibm-runtime>=0.42
 torch
 matplotlib
 pylatexenc              # required by qc.draw("mpl") for gate label rendering
-qiskit-ibm-runtime      # only needed for VQCQNetwork(backend=...) on real/fake devices
