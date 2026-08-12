@@ -5,6 +5,7 @@
 # qiskit-machine-learning 0.9 requires qiskit>=2.0 and supports Python 3.10-3.13.
 qiskit>=2.0
 qiskit-machine-learning>=0.9
+qiskit-ibm-runtime>=0.42
 torch
 matplotlib
 pylatexenc              # required by qc.draw("mpl") for gate label rendering
