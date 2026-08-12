@@ -1,3 +1,14 @@
+# Quantum half of the DRL+VQC agent.
+#   python3 -m venv .venv
+#   .venv/bin/python -m pip install -r requirements.txt
+#
+# qiskit-machine-learning 0.9 requires qiskit>=2.0 and supports Python 3.10-3.13.
+qiskit>=2.0
+qiskit-machine-learning>=0.9
+qiskit-ibm-runtime>=0.42
+torch
+matplotlib
+pylatexenc              # required by qc.draw("mpl") for gate label rendering
 # Verified working set — versions as installed in the `ntuquant` conda env
 # (Python 3.12, CPU-only torch) that produced the results in results/.
 
