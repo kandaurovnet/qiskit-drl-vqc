@@ -1,11 +1,18 @@
-# Quantum half of the DRL+VQC agent.
-#   python3 -m venv .venv
-#   .venv/bin/python -m pip install -r requirements.txt
-#
-# qiskit-machine-learning 0.9 requires qiskit>=2.0 and supports Python 3.10-3.13.
-qiskit>=2.0
-qiskit-machine-learning>=0.9
-torch
-matplotlib
-pylatexenc              # required by qc.draw("mpl") for gate label rendering
-qiskit-ibm-runtime      # only needed for VQCQNetwork(backend=...) on real/fake devices
+# Verified working set — versions as installed in the `ntuquant` conda env
+# (Python 3.12, CPU-only torch) that produced the results in results/.
+
+# --- Classical RL stack ---
+torch==2.13.0
+gymnasium==1.3.0
+numpy==2.2.6
+matplotlib==3.10.9
+
+# --- Quantum stack ---
+qiskit==2.5.1
+qiskit-aer==0.17.2
+qiskit-machine-learning==0.9.0   # provides EstimatorQNN + TorchConnector
+pylatexenc==2.11                 # gate label rendering for qc.draw("mpl")
+
+# Optional: only needed to submit jobs to real IBM Quantum hardware,
+# and for VQCQNetwork(backend=...) / the transpiled circuit figure.
+# qiskit-ibm-runtime==0.49.0

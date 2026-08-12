@@ -1,4 +1,15 @@
-.venv/
+# Upstream hackathon materials — cloned separately, not part of this project
+2026-ntu-scaling-for-quantum-advantage-and-beyond/
+
+# Python
 __pycache__/
-*.pyc
-results/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Environments / editors
+.env
+.vscode/
+.idea/
