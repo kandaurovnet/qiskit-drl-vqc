@@ -55,7 +55,9 @@ import torch
 import torch.nn as nn
 from qiskit import QuantumCircuit
 from qiskit.circuit import ParameterVector
+from qiskit.primitives import BackendEstimatorV2, StatevectorEstimator
 from qiskit.quantum_info import SparsePauliOp
+from qiskit.transpiler import generate_preset_pass_manager
 from qiskit_machine_learning.neural_networks import EstimatorQNN
 from qiskit_machine_learning.connectors import TorchConnector
 
@@ -136,25 +138,68 @@ class VQCQNetwork(nn.Module):
     - ``output_scale`` per-action output scaling (w)
     """
 
-    def __init__(self, n_qubits: int = N_QUBITS, n_layers: int = N_LAYERS, seed: int | None = None):
+    def __init__(
+        self,
+        n_qubits: int = N_QUBITS,
+        n_layers: int = N_LAYERS,
+        seed: int | None = None,
+        backend=None,
+        shots: int | None = None,
+        optimization_level: int = 1,
+    ):
+        """
+        Args:
+            backend: ``None`` runs on the exact statevector simulator. Pass a
+                Qiskit backend (``FakeManilaV2()``, or a real
+                ``QiskitRuntimeService`` backend) to run there instead; the
+                circuit is transpiled for it and the observables are laid out
+                to match.
+            shots: ``None`` means exact expectation values, which is only
+                possible on the simulator. Any integer adds sampling noise with
+                standard error ~1/sqrt(shots). Ignored-as-exact is impossible on
+                hardware, so a backend without ``shots`` defaults to 1024.
+            optimization_level: transpiler optimization level, hardware only.
+        """
         super().__init__()
         self.n_qubits = n_qubits
         self.n_layers = n_layers
 
         qc, x_params, theta_params = build_qnetwork_circuit(n_qubits, n_layers)
+        observables = build_observables(n_qubits)
+
+        # precision is the estimator's target standard error; 0.0 means exact.
+        precision = 0.0 if shots is None else 1.0 / np.sqrt(shots)
+
+        if backend is None:
+            estimator = StatevectorEstimator(seed=seed)
+        else:
+            pm = generate_preset_pass_manager(
+                optimization_level=optimization_level, backend=backend, seed_transpiler=seed
+            )
+            qc = pm.run(qc)
+            # EstimatorQNN transpiles the circuit but leaves user-supplied
+            # observables alone, so they must be mapped onto the physical
+            # qubits by hand or they act on the wrong wires.
+            observables = [obs.apply_layout(qc.layout) for obs in observables]
+            estimator = BackendEstimatorV2(backend=backend)
+            if shots is None:
+                precision = 1.0 / np.sqrt(1024)  # hardware can never be exact
+
+        self.backend = backend
         self.circuit = qc
 
         qnn = EstimatorQNN(
             circuit=qc,
-            observables=build_observables(n_qubits),
+            observables=observables,
             input_params=list(x_params),
             weight_params=list(theta_params),
             # Gradients must reach the input parameters, because the trainable
             # input scaling lambda is applied on the torch side.
             input_gradients=True,
-            # The default is 0.015625, which injects sampling noise into every
-            # expectation value. Exact values keep training deterministic.
-            default_precision=0.0,
+            # The library default is 0.015625, which injects sampling noise into
+            # every expectation value even on the simulator.
+            default_precision=precision,
+            estimator=estimator,
         )
 
         rng = np.random.default_rng(seed)
