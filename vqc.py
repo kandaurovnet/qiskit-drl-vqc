@@ -18,6 +18,9 @@ Architecture (following Skolik, Jerbi & Dunjko, arXiv:2103.15084):
 - Two observables, ``Z0Z1`` and ``Z2Z3``, one per action.
 - Trainable input scaling ``lambda`` and output scaling ``w``.
 
+Input contract: ``forward`` expects observations already bounded to roughly
+[-1, 1]. ``cartpole_dqn.normalize_obs`` provides exactly that.
+
 Four of these choices are load-bearing, and all four were verified by
 finite-difference gradients on a direct statevector simulation:
 
@@ -214,14 +217,18 @@ class VQCQNetwork(nn.Module):
         self.output_scale = nn.Parameter(torch.ones(N_ACTIONS))
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
-        """``(batch, n_qubits)`` observations -> ``(batch, N_ACTIONS)`` Q-values."""
+        """``(batch, n_qubits)`` observations -> ``(batch, N_ACTIONS)`` Q-values.
+
+        The state is expected to be pre-bounded to roughly [-1, 1] by the
+        caller; ``cartpole_dqn.normalize_obs`` already does this by clipping to
+        ``OBS_HIGH`` and dividing. No further squashing is applied here, since
+        composing another arctan on top would compress the encoding range to
+        +/-0.785 rad and flatten exactly the extreme states that matter most.
+        """
         if state.dim() == 1:
             state = state.unsqueeze(0)
 
-        # arctan bounds CartPole's unbounded velocity features into the range
-        # where a rotation angle is still informative.
-        encoded = torch.arctan(state)                        # (B, n_qubits)
-        angles = self.input_scale.unsqueeze(0) * encoded.unsqueeze(1)  # (B, L, n_qubits)
+        angles = self.input_scale.unsqueeze(0) * state.unsqueeze(1)  # (B, L, n_qubits)
         angles = angles.reshape(state.shape[0], -1)          # (B, L * n_qubits)
 
         expectations = self.qlayer(angles)                   # (B, N_ACTIONS), in [-1, 1]
