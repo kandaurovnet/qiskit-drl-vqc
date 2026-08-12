@@ -1,0 +1,51 @@
+{
+  "config": {
+    "agents": [
+      "classical",
+      "quantum"
+    ],
+    "seeds": [
+      0
+    ],
+    "episodes": 2000,
+    "total_steps": 50000,
+    "batch_size": 64,
+    "train_freq": 256,
+    "gradient_steps": 128,
+    "lr_classical": 0.0023,
+    "lr_quantum": 0.001,
+    "n_layers": 3,
+    "quantum_backend": "torch",
+    "double_dqn": false,
+    "out_dir": "results",
+    "smoke": false
+  },
+  "summary": [
+    {
+      "agent": "classical",
+      "params": 67586,
+      "seeds": 1,
+      "greedy_mean": 123.51,
+      "greedy_spread": [
+        123.51,
+        123.51
+      ],
+      "solved": 0,
+      "episodes": 573,
+      "wall_sec": 33.28936696052551
+    },
+    {
+      "agent": "quantum",
+      "params": 46,
+      "seeds": 1,
+      "greedy_mean": 201.44,
+      "greedy_spread": [
+        201.44,
+        201.44
+      ],
+      "solved": 0,
+      "episodes": 434,
+      "wall_sec": 384.3109209537506
+    }
+  ]
+}

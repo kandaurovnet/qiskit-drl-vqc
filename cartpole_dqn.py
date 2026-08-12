@@ -97,15 +97,19 @@ class ClassicalQNetwork(nn.Module):
         return self.layers[-1](x)
 
 
+# Construction options for the quantum network, e.g. {"n_layers": 5} or
+# {"backend": "qiskit"}. run_experiment.py sets this; defaults are vqc.py's.
+QUANTUM_KWARGS: dict = {}
+
+
 def build_q_network(agent: str) -> nn.Module:
-    """Factory. Quantum team: add an 'quantum' branch here that returns your
-    TorchConnector-wrapped EstimatorQNN. Must satisfy the interface above."""
+    """Factory returning a network that satisfies the interface above."""
     if agent == "classical":
         return ClassicalQNetwork()
     elif agent == "quantum":
-        raise NotImplementedError(
-            "Plug in your Qiskit EstimatorQNN + TorchConnector network here."
-        )
+        # Imported lazily so the classical baseline does not require qiskit.
+        from vqc import VQCQNetwork
+        return VQCQNetwork(**QUANTUM_KWARGS)
     else:
         raise ValueError(f"Unknown agent type: {agent}")
 
