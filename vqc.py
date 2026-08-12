@@ -68,6 +68,7 @@ N_QUBITS = 4        # One per CartPole observation feature.
 N_LAYERS = 3        # Variational blocks; each re-uploads the input.
 N_ACTIONS = 2       # CartPole: push left / push right.
 CIRCUIT_IMAGE = "vqc_circuit.png"
+TRANSPILED_IMAGE = "vqc_circuit_transpiled.png"
 
 
 def build_qnetwork_circuit(n_qubits: int = N_QUBITS, n_layers: int = N_LAYERS):
@@ -242,9 +243,22 @@ def main():
     print(model.circuit.draw())
     print()
 
-    # Keep the documented circuit figure in sync with the code that built it.
+    # Keep the documented circuit figures in sync with the code that built them.
     model.circuit.draw("mpl", filename=CIRCUIT_IMAGE, fold=-1)
-    print(f"Circuit diagram written to {CIRCUIT_IMAGE}\n")
+    print(f"Circuit diagram written to {CIRCUIT_IMAGE}")
+
+    # The same circuit as a real device would actually run it: native basis
+    # gates, physical qubit mapping, and SWAPs for missing connectivity.
+    try:
+        from qiskit_ibm_runtime.fake_provider import FakeManilaV2
+    except ImportError:
+        print("(install qiskit-ibm-runtime to also render the transpiled circuit)\n")
+    else:
+        hw = VQCQNetwork(seed=0, backend=FakeManilaV2(), shots=1024)
+        hw.circuit.draw("mpl", filename=TRANSPILED_IMAGE, fold=38, idle_wires=False)
+        print(f"Transpiled diagram written to {TRANSPILED_IMAGE} "
+              f"({model.circuit.num_qubits} qubits depth {model.circuit.depth()} -> "
+              f"{hw.circuit.num_qubits} qubits depth {hw.circuit.depth()})\n")
 
     n_theta = sum(p.numel() for p in model.qlayer.parameters())
     print(f"circuit rotation params (theta) : {n_theta}")
