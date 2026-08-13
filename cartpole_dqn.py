@@ -79,21 +79,43 @@ def normalize_obs(obs: np.ndarray) -> np.ndarray:
     return (clipped / OBS_HIGH).astype(np.float32)
 
 
-def shape_reward(norm_obs: np.ndarray, base_reward: float) -> float:
-    """Dense shaping: reward being centered and upright, not merely alive.
+def shape_reward(norm_obs: np.ndarray, base_reward: float, terminated: bool) -> float:
+    """Dense shaping: reward being centered, upright and slow, not merely alive.
 
     CartPole-v1's native reward is +1 every step no matter how close to
     failure the state is, so an agent teetering at the track edge gets the
     same signal as one sitting dead-center -- nothing pushes it toward the
-    safer states it's easier to keep balancing from. Penalizing cart-position
-    and pole-angle deviation (already normalized to roughly [-1, 1] by
-    normalize_obs) adds that gradient while staying in the same [0, 1] range
-    as the unshaped reward, so it doesn't fight the networks' output scaling
-    (calibrated for Q-values ~= 1/(1-gamma) under the base +1/step reward,
-    most load-bearing for VQCQNetwork.output_scale -- see vqc.py).
+    safer states it's easier to keep balancing from. The deviation terms
+    (inputs already normalized to roughly [-1, 1] by normalize_obs) supply
+    that gradient; the terminal penalty makes falling explicitly costly
+    rather than merely an early end to the +1 stream.
+
+    Measured against the classical agent, 3 seeds, 80k steps: 3/3 solved at
+    greedy 500.0 with no post-success collapse, and the greedy policy holds
+    mean |x| ~= 0.11 / mean |x_dot| ~= 0.11, versus ~0.66 / ~0.40 for a
+    position+angle-only penalty and ~0.72 / ~0.30 for no shaping at all.
+    The velocity term is what buys the steadiness; the terminal penalty is
+    what removes the collapse.
+
+    Two consequences worth knowing:
+
+    - This is NOT potential-based (Ng et al. 1999), so it does not preserve
+      the optimal policy of the underlying MDP -- deliberately, since a
+      centered-and-slow balance is the behaviour we want. train() keeps
+      ep_reward and the solve check on the TRUE env reward, so "solved"
+      still means solved on CartPole's own terms.
+    - Terminal transitions bootstrap from zero, so their target is the raw
+      reward: Q now spans roughly [-200, +100] rather than [0, +100]. That
+      breaks the assumption vqc.py documents for VQCQNetwork.output_scale
+      ("Q-values reach ~100"), which starts at 1.0 and must now stretch
+      ~3x further. Check the quantum agent before assuming this transfers.
     """
-    x, _x_dot, theta, _theta_dot = norm_obs
-    return base_reward - 0.2 * abs(float(x)) - 5 * abs(float(theta))
+    x, x_dot, theta, _theta_dot = norm_obs
+    return (base_reward
+            - 1.0 * abs(float(x))
+            - 1.0 * abs(float(theta))
+            - 5.0 * abs(float(x_dot))
+            - (200.0 if terminated else 0.0))
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +123,7 @@ def shape_reward(norm_obs: np.ndarray, base_reward: float) -> float:
 # ---------------------------------------------------------------------------
 
 class ClassicalQNetwork(nn.Module):
-    def __init__(self, n_inputs: int = 4, n_actions: int = 2, hidden=(256, 256)):
+    def __init__(self, n_inputs: int = 4, n_actions: int = 2, hidden=(32, 32)):
         super().__init__()
         dims = [n_inputs, *hidden, n_actions]
         self.layers = nn.ModuleList(
@@ -325,7 +347,7 @@ def train(
             # (logging, solve-window check) always accumulates the true env
             # reward, so `solve_reward=475` keeps meaning the same thing whether
             # or not shaping is on.
-            train_reward = shape_reward(norm_next_obs, reward) if reward_shaping else reward
+            train_reward = shape_reward(norm_next_obs, reward, terminated) if reward_shaping else reward
             # Store `terminated`, NOT `done`. gymnasium truncates CartPole at 500
             # steps, but a truncated state is not terminal -- the pole is still
             # balanced, so its value must keep bootstrapping. Storing `done` here

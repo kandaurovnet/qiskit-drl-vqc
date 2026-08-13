@@ -44,7 +44,7 @@ from cartpole_dqn import train
 
 # arm name -> (agent kind, network construction kwargs)
 ARMS = {
-    "classical":       ("classical", {"hidden": (256, 256)}),
+    "classical":       ("classical", {"hidden": (32, 32)}),
     "classical-small": ("classical", {"hidden": (6,)}),
     "quantum":         ("quantum",   {}),
 }
