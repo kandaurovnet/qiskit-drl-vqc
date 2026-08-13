@@ -468,7 +468,15 @@ def train(
                 score = float(np.mean(evaluate(policy_net, episodes=eval_episodes,
                                                seed=seed + 50_000)))
                 eval_history.append((steps_done, score))
-                if score > best_eval:
+                # >= not >, so a tie keeps the *later* checkpoint. 500 is
+                # CartPole's episode cap, so an eval_episodes-sized eval
+                # saturates there: with > the first policy to score a perfect
+                # 10/10 froze the selection for the rest of the run, since
+                # nothing can then exceed it. That discarded up to five later
+                # 500-scoring checkpoints in the committed runs. Two policies
+                # tied on 10 episodes can differ by a lot over 100, and the
+                # later one has trained longer, so prefer it.
+                if score >= best_eval:
                     best_eval = score
                     best_state = {k: v.detach().clone()
                                   for k, v in policy_net.state_dict().items()}
