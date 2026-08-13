@@ -116,9 +116,9 @@ def shape_reward(norm_obs: np.ndarray, base_reward: float, terminated: bool) -> 
     x, x_dot, theta, _theta_dot = norm_obs
     return (base_reward
             - 1.0 * abs(float(x))
-            - 4.0 * abs(float(theta))
-            - 1.0 * abs(float(x_dot))
-            - (100.0 if terminated else 0.0))
+            - 8.0 * abs(float(theta))
+            - 2.0 * abs(float(x_dot))
+            - (200.0 if terminated else 0.0))
 
 
 # ---------------------------------------------------------------------------
@@ -644,15 +644,15 @@ if __name__ == "__main__":
     parser.add_argument("--eval-every-steps", type=int, default=2500)
     parser.add_argument("--eval-episodes", type=int, default=10)
     parser.add_argument("--target-update-every-steps", type=int, default=10)
-    parser.add_argument("--stop-margin", type=float, default=20.0,
+    parser.add_argument("--stop-margin", type=float, default=50.0,
                         help="cheap eval must clear solve_reward by this "
                              "much before an early-stop confirmation runs")
-    parser.add_argument("--confirm-episodes", type=int, default=50,
+    parser.add_argument("--confirm-episodes", type=int, default=100,
                         help="episodes used to confirm an early-stop trigger")
     parser.add_argument("--log-window", type=int, default=100,
                         help="episodes averaged in the progress line only")
     parser.add_argument("--stop-on-eval", action=argparse.BooleanOptionalAction,
-                        default=True,
+                        default=False,
                         help="stop once a greedy eval clears solve_reward, "
                              "confirmed over solve_window episodes")
     parser.add_argument("--n-step", type=int, default=3,
