@@ -116,7 +116,7 @@ def shape_reward(norm_obs: np.ndarray, base_reward: float, terminated: bool) -> 
     x, x_dot, theta, _theta_dot = norm_obs
     return (base_reward
             - 1.0 * abs(float(x))
-            - 8.0 * abs(float(theta))
+            - 4.0 * abs(float(theta))
             - 1.0 * abs(float(x_dot))
             - (100.0 if terminated else 0.0))
 
@@ -305,9 +305,9 @@ def train(
     # runs -- a 20-episode eval of a truly-475.7 policy flips the verdict 44%
     # of the time, so this stays at 100 to keep the headline number readable.
     solve_window: int = 100,
-    # Progress-line window only. Short so the log reacts quickly; it has no say
-    # in when the run stops or what score it reports.
-    log_window: int = 20,
+    # Progress-line window only. It has no say in when the run stops or what
+    # score the run reports -- that is solve_window's job.
+    log_window: int = 100,
     # Stop as soon as the periodic greedy eval clears the bar, confirmed over
     # solve_window episodes. The training-reward criterion below effectively
     # never fires with eps_end=0.04 -- 4% random actions keep training episodes
@@ -575,21 +575,44 @@ def train(
         json.dump(run_data, f)
     print(f"Saved run data to {json_path}")
 
-    plot_rewards(episode_rewards, episode_losses, name, out_dir)
+    plot_rewards(episode_rewards, episode_losses, name, out_dir,
+                 eval_history=eval_history, solve_reward=solve_reward)
     return run_data
 
 
-def plot_rewards(episode_rewards, episode_losses, agent, out_dir, mean_window=100):
+def plot_rewards(episode_rewards, episode_losses, agent, out_dir, mean_window=100,
+                 eval_history=None, solve_reward=475.0):
+    """Training curves, with the greedy eval drawn alongside them.
+
+    Without the eval overlay this plot is actively misleading: the blue/orange
+    curves are training reward, collected with exploration still on, and at
+    eps_end=0.04 a single random push ends an episode. Training reward
+    therefore plateaus far under the bar even when the policy is perfect --
+    which made runs look like they quit early, when in fact they stopped
+    because the *greedy* policy had cleared it. The threshold belongs to the
+    green eval series; it is not a target the training curve can reach.
+    """
     fig, (ax_r, ax_l) = plt.subplots(2, 1, sharex=True, figsize=(7, 7), dpi=150)
 
-    ax_r.plot(episode_rewards, alpha=0.4, label="episode reward")
+    ax_r.plot(episode_rewards, alpha=0.4, label="episode reward (with exploration)")
     if len(episode_rewards) >= mean_window:
         means = np.convolve(episode_rewards, np.ones(mean_window) / mean_window, mode="valid")
         ax_r.plot(range(mean_window - 1, len(episode_rewards)), means, label=f"mean ({mean_window})")
-    ax_r.axhline(475, color="green", linestyle="--", alpha=0.5, label="solved threshold")
+
+    if eval_history:
+        # eval_history is indexed by env step; the axis is episodes, so map each
+        # eval onto the episode that was running when it fired.
+        cum = np.cumsum(episode_rewards)
+        xs = [int(np.searchsorted(cum, step)) for step, _ in sorted(eval_history)]
+        ys = [score for _, score in sorted(eval_history)]
+        ax_r.plot(xs, ys, "o-", color="tab:green", ms=3, lw=1.2,
+                  label="greedy eval (no exploration)")
+
+    ax_r.axhline(solve_reward, color="green", linestyle="--", alpha=0.5,
+                 label=f"solved bar ({solve_reward:.0f}, judged on greedy eval)")
     ax_r.set_ylabel("Reward")
     ax_r.set_title(f"CartPole-v1 training — {agent}")
-    ax_r.legend()
+    ax_r.legend(fontsize=8)
 
     ax_l.plot(episode_losses, alpha=0.6, color="tab:red", label="mean loss / episode")
     ax_l.set_yscale("log")
@@ -626,7 +649,7 @@ if __name__ == "__main__":
                              "much before an early-stop confirmation runs")
     parser.add_argument("--confirm-episodes", type=int, default=50,
                         help="episodes used to confirm an early-stop trigger")
-    parser.add_argument("--log-window", type=int, default=20,
+    parser.add_argument("--log-window", type=int, default=100,
                         help="episodes averaged in the progress line only")
     parser.add_argument("--stop-on-eval", action=argparse.BooleanOptionalAction,
                         default=True,
@@ -643,17 +666,9 @@ if __name__ == "__main__":
                              "native +1/step reward (see shape_reward). Helps the classical "
                              "agent; use --no-reward-shaping for quantum (see train()'s "
                              "docstring comment on reward_shaping)")
-    parser.add_argument("--quantum-init", choices=["small","uniform","identity"],
-                        default="small",
-                        help="initial circuit angles: small N(0,0.1) near-identity "
-                             "(default), uniform U(-pi,pi), or identity (theta=0, "
-                             "DEGENERATE for this ansatz -- zero gradients)")
     parser.add_argument("--tag", type=str, default="",
                         help="suffix for output filenames, e.g. --tag _ddqn")
     args = parser.parse_args()
-
-    if args.agent == "quantum":
-        QUANTUM_KWARGS["init"] = args.quantum_init
 
     train(
         agent=args.agent,
