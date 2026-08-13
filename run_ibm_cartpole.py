@@ -25,7 +25,7 @@ from qiskit_ibm_runtime import EstimatorV2, QiskitRuntimeService
 
 from cartpole_dqn import normalize_obs
 from ibm_backend_inference import ACCOUNT_NAME, DEFAULT_BACKEND, prepare_vqc_for_backend
-from vqc import VQCQNetwork
+from vqc_checkpoint import infer_shape, load_vqc
 
 
 DEFAULT_CHECKPOINT = Path("results/quantum_policy.pt")
@@ -58,10 +58,7 @@ def save_evaluation_artifacts(run: dict, checkpoint_path: Path, output_path: Pat
         shutil.copyfile(checkpoint_path, policy_path)
 
     steps = run["steps"]
-    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
-    exact_model = VQCQNetwork(n_layers=3, backend="torch", seed=0)
-    exact_model.load_state_dict(checkpoint, strict=True)
-    exact_model.eval()
+    exact_model = load_vqc(checkpoint_path, backend="torch")
     normalized_batch = torch.tensor(
         [step["normalized_observation"] for step in steps], dtype=torch.float32
     )
@@ -132,8 +129,11 @@ def load_checkpoint(path: Path, prepared) -> tuple[np.ndarray, np.ndarray, np.nd
     output_scale = checkpoint["output_scale"].detach().cpu().numpy().astype(float)
     if theta.shape != (len(prepared.weight_parameters),):
         raise RuntimeError(f"Expected {len(prepared.weight_parameters)} weights, got {theta.shape}.")
-    if input_scale.shape != (3, 4):
-        raise RuntimeError(f"Expected input_scale shape (3, 4), got {input_scale.shape}.")
+    expected_input_shape = (prepared.n_layers, prepared.n_qubits)
+    if input_scale.shape != expected_input_shape:
+        raise RuntimeError(
+            f"Expected input_scale shape {expected_input_shape}, got {input_scale.shape}."
+        )
     if output_scale.shape != (2,):
         raise RuntimeError(f"Expected output_scale shape (2,), got {output_scale.shape}.")
     return theta, input_scale, output_scale
@@ -141,7 +141,7 @@ def load_checkpoint(path: Path, prepared) -> tuple[np.ndarray, np.ndarray, np.nd
 
 def bind_state(prepared, normalized_state, theta, input_scale) -> list[float]:
     normalized = np.asarray(normalized_state, dtype=float)
-    if normalized.shape != (4,) or not np.isfinite(normalized).all():
+    if normalized.shape != (prepared.n_qubits,) or not np.isfinite(normalized).all():
         raise RuntimeError(f"Invalid normalized CartPole state: {normalized}")
     input_angles = (input_scale * normalized[None, :]).reshape(-1)
     values = {
@@ -149,8 +149,9 @@ def bind_state(prepared, normalized_state, theta, input_scale) -> list[float]:
         **dict(zip(prepared.weight_parameters, theta, strict=True)),
     }
     row = [float(values[parameter]) for parameter in prepared.circuit.parameters]
-    if len(row) != 44 or not np.isfinite(row).all():
-        raise RuntimeError("Expected 44 finite VQC circuit values.")
+    expected_values = len(prepared.input_parameters) + len(prepared.weight_parameters)
+    if len(row) != expected_values or not np.isfinite(row).all():
+        raise RuntimeError(f"Expected {expected_values} finite VQC circuit values.")
     return row
 
 
@@ -164,7 +165,11 @@ def _new_run(*, backend, checkpoint, seed, max_steps, precision, prepared) -> di
         "checkpoint": checkpoint.as_posix(),
         "inference_backend": backend,
         "execution": "qiskit_ibm_runtime.EstimatorV2",
-        "params": 46,
+        "params": (
+            len(prepared.input_parameters) + len(prepared.weight_parameters) + 2
+        ),
+        "n_qubits": prepared.n_qubits,
+        "n_layers": prepared.n_layers,
         "seed": seed,
         "episodes_requested": 1,
         "max_steps": max_steps,
@@ -219,7 +224,14 @@ def evaluate_ibm_cartpole(
             "or choose a different --ibm-output."
         )
 
-    prepared = prepare_vqc_for_backend(backend_name, account_name=account_name)
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+    n_layers, n_qubits = infer_shape(checkpoint)
+    prepared = prepare_vqc_for_backend(
+        backend_name,
+        account_name=account_name,
+        n_qubits=n_qubits,
+        n_layers=n_layers,
+    )
     theta, input_scale, output_scale = load_checkpoint(checkpoint_path, prepared)
 
     if resume:

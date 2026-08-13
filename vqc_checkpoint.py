@@ -3,8 +3,8 @@
 
 Training runs on ``backend="torch"`` because the Qiskit parameter-shift path is
 ~1900x slower, but finite-shot and hardware evaluation must run on a Qiskit
-backend. Those two backends store the same 32 circuit angles under different
-state_dict keys, so a plain ``load_state_dict`` fails:
+backend. Those two backends store the same architecture-dependent circuit
+angles under different state_dict keys, so a plain ``load_state_dict`` fails:
 
     torch  backend : input_scale, output_scale, theta,         _obs
     qiskit backend : input_scale, output_scale, qlayer.weight, qlayer._weights

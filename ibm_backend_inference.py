@@ -38,6 +38,8 @@ class PreparedVQC:
     observables: tuple[SparsePauliOp, ...]
     input_parameters: tuple[Parameter, ...]
     weight_parameters: tuple[Parameter, ...]
+    n_qubits: int
+    n_layers: int
     original_depth: int
     transpiled_depth: int
     two_qubit_gates: int
@@ -80,6 +82,8 @@ def prepare_vqc_for_backend(
     account_name: str = ACCOUNT_NAME,
     seed_transpiler: int = SEED_TRANSPILER,
     optimization_level: int = OPTIMIZATION_LEVEL,
+    n_qubits: int = 4,
+    n_layers: int = 3,
 ) -> PreparedVQC:
     """Build and validate an ISA-compatible VQC without submitting a job."""
     service = QiskitRuntimeService(name=account_name)
@@ -89,6 +93,8 @@ def prepare_vqc_for_backend(
         backend,
         seed_transpiler=seed_transpiler,
         optimization_level=optimization_level,
+        n_qubits=n_qubits,
+        n_layers=n_layers,
     )
 
 
@@ -97,10 +103,14 @@ def prepare_vqc_for_target(
     *,
     seed_transpiler: int = SEED_TRANSPILER,
     optimization_level: int = OPTIMIZATION_LEVEL,
+    n_qubits: int = 4,
+    n_layers: int = 3,
 ) -> PreparedVQC:
     """Prepare the VQC for an already selected real or fake backend."""
 
-    circuit, input_parameters, weight_parameters = build_qnetwork_circuit()
+    circuit, input_parameters, weight_parameters = build_qnetwork_circuit(
+        n_qubits=n_qubits, n_layers=n_layers
+    )
     original_depth = circuit.depth()
     expected_parameters = set(input_parameters) | set(weight_parameters)
 
@@ -124,7 +134,7 @@ def prepare_vqc_for_target(
 
     mapped_observables = tuple(
         observable.apply_layout(isa_circuit.layout)
-        for observable in build_observables()
+        for observable in build_observables(n_qubits)
     )
     if len(mapped_observables) != 2:
         raise RuntimeError("Expected exactly two action observables.")
@@ -141,6 +151,8 @@ def prepare_vqc_for_target(
         observables=mapped_observables,
         input_parameters=tuple(input_parameters),
         weight_parameters=tuple(weight_parameters),
+        n_qubits=n_qubits,
+        n_layers=n_layers,
         original_depth=original_depth,
         transpiled_depth=isa_circuit.depth(),
         two_qubit_gates=two_qubit_gates,
@@ -157,8 +169,9 @@ def _format_summary(prepared: PreparedVQC) -> str:
         f"Original circuit depth: {prepared.original_depth}\n"
         f"ISA circuit depth: {prepared.transpiled_depth}\n"
         f"Two-qubit gates: {prepared.two_qubit_gates}\n"
-        f"Input parameters: {len(prepared.input_parameters)} (expected 12)\n"
-        f"Weight parameters: {len(prepared.weight_parameters)} (expected 32)\n"
+        f"VQC architecture: {prepared.n_layers} layers x {prepared.n_qubits} qubits\n"
+        f"Input parameters: {len(prepared.input_parameters)}\n"
+        f"Weight parameters: {len(prepared.weight_parameters)}\n"
         f"Mapped observables: {len(prepared.observables)} (expected 2)\n\n"
         "No Runtime job was submitted and no QPU execution time was used."
     )
@@ -177,7 +190,7 @@ def build_smoke_test_inputs(
     # Match VQCQNetwork's initialized parameters without constructing its QNN.
     # The smoke-test input and output scales both initialize to one.
     encoded = np.arctan(np.asarray(observation, dtype=float))
-    input_angles = np.tile(encoded, 3)
+    input_angles = np.tile(encoded, prepared.n_layers)
     theta_values = np.random.default_rng(seed).uniform(
         -np.pi, np.pi, size=len(prepared.weight_parameters)
     )
