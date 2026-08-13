@@ -294,7 +294,34 @@ def train(
     # None resolves below to a shaping-dependent default.
     lr_output: float | None = None,
     solve_reward: float = 475.0,
+    # 475 over 100 consecutive episodes is CartPole-v1's own "solved"
+    # definition, and this is also how many episodes the final greedy eval
+    # runs -- a 20-episode eval of a truly-475.7 policy flips the verdict 44%
+    # of the time, so this stays at 100 to keep the headline number readable.
     solve_window: int = 100,
+    # Progress-line window only. Short so the log reacts quickly; it has no say
+    # in when the run stops or what score it reports.
+    log_window: int = 20,
+    # Stop as soon as the periodic greedy eval clears the bar, confirmed over
+    # solve_window episodes. The training-reward criterion below effectively
+    # never fires with eps_end=0.04 -- 4% random actions keep training episodes
+    # under 475 even when the greedy policy is perfect (measured: a run hit
+    # greedy 475 at step 2500 and still never tripped the training-reward test
+    # in 80k steps). Stopping on the eval instead cuts ~66% of training steps.
+    stop_on_eval: bool = True,
+    # Episodes used to confirm a stop trigger. Deliberately smaller than
+    # solve_window: a confirmation is a veto on a noisy 10-episode reading, not
+    # the reported score, and the full solve_window eval still runs afterwards.
+    # At 100 the confirmations cost more forward passes than all of training
+    # (measured: 90k vs 33k, one of them a marginal 476.0 that failed anyway).
+    confirm_episodes: int = 50,
+    # Margin over solve_reward that the cheap periodic eval must clear before a
+    # confirmation is even attempted. Triggering at the bar itself stops on
+    # marginal policies: measured, a 476.0 reading burned a full confirmation
+    # and failed, and a 30-episode confirmation let a true-469.4 policy through
+    # as "solved". Requiring the cheap eval to be comfortably clear makes the
+    # confirmation a formality rather than a coin flip.
+    stop_margin: float = 20.0,
     out_dir: str = "results",
     seed: int = 0,
     double_dqn: bool = True,
@@ -354,6 +381,7 @@ def train(
     steps_done = 0
     best_eval = -float("inf")
     best_state = None
+    stop_reason = None
     eval_history = []          # (step, greedy mean) for the training plot
     tic = time.time()
 
@@ -436,9 +464,22 @@ def train(
                     best_eval = score
                     best_state = {k: v.detach().clone()
                                   for k, v in policy_net.state_dict().items()}
+                # A 5-10 episode eval is a noisy estimate, so confirm over the
+                # full solve_window before believing it and stopping.
+                if stop_on_eval and score >= solve_reward + stop_margin:
+                    confirm = float(np.mean(evaluate(policy_net, episodes=confirm_episodes,
+                                                     seed=seed + 10_000)))
+                    if confirm >= solve_reward:
+                        print(f"[{name}] SOLVED on greedy eval at {steps_done} steps: "
+                              f"{confirm:.1f} over {confirm_episodes} episodes")
+                        stop_reason = "greedy eval"
+                        break
 
             if done:
                 break
+
+        if stop_reason == "greedy eval":
+            break
 
         # Tail windows at episode end: each remaining head still becomes a
         # transition, over however many steps it actually saw (gamma**k stored
@@ -451,7 +492,7 @@ def train(
         episode_losses.append(ep_loss_sum / ep_loss_count if ep_loss_count else 0.0)
 
         if ep % 20 == 0:
-            recent = episode_rewards[-solve_window:]
+            recent = episode_rewards[-log_window:]
             avg = sum(recent) / len(recent)
             print(f"[{name}] episode {ep:4d}  reward {ep_reward:6.1f}  "
                   f"avg({len(recent)}) {avg:6.1f}  loss {episode_losses[-1]:7.4f}  eps {eps:.3f}")
@@ -501,6 +542,7 @@ def train(
         "params": sum(p.numel() for p in policy_net.parameters()),
         "seed": seed,
         "double_dqn": double_dqn,
+        "stop_reason": stop_reason,
         "tau": tau,
         "n_step": n_step,
         "reward_shaping": reward_shaping,
@@ -568,6 +610,17 @@ if __name__ == "__main__":
     parser.add_argument("--eval-every-steps", type=int, default=2500)
     parser.add_argument("--eval-episodes", type=int, default=10)
     parser.add_argument("--target-update-every-steps", type=int, default=10)
+    parser.add_argument("--stop-margin", type=float, default=20.0,
+                        help="cheap eval must clear solve_reward by this "
+                             "much before an early-stop confirmation runs")
+    parser.add_argument("--confirm-episodes", type=int, default=50,
+                        help="episodes used to confirm an early-stop trigger")
+    parser.add_argument("--log-window", type=int, default=20,
+                        help="episodes averaged in the progress line only")
+    parser.add_argument("--stop-on-eval", action=argparse.BooleanOptionalAction,
+                        default=True,
+                        help="stop once a greedy eval clears solve_reward, "
+                             "confirmed over solve_window episodes")
     parser.add_argument("--n-step", type=int, default=3,
                         help="n-step return window; 1 = classic DQN targets, best "
                              "when only the saved checkpoint matters")
@@ -600,6 +653,10 @@ if __name__ == "__main__":
         target_update_every_steps=args.target_update_every_steps,
         tau=args.tau,
         n_step=args.n_step,
+        log_window=args.log_window,
+        stop_on_eval=args.stop_on_eval,
+        confirm_episodes=args.confirm_episodes,
+        stop_margin=args.stop_margin,
         double_dqn=args.double_dqn,
         reward_shaping=args.reward_shaping,
         tag=args.tag,
