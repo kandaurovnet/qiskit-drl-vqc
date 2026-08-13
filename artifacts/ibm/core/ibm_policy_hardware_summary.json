@@ -1,6 +1,6 @@
 {
   "status": "preliminary_hardware_evaluation",
-  "source_result": "results/ibm_policy_evaluation_d9ulamt35hes73fk3400.json",
+  "source_result": "artifacts/ibm/core/ibm_policy_evaluation_d9ulamt35hes73fk3400.json",
   "backend": "ibm_marrakesh",
   "job_id": "d9ulamt35hes73fk3400",
   "target_precision": 0.1,

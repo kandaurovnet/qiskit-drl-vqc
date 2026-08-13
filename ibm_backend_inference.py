@@ -28,7 +28,7 @@ SEED_TRANSPILER = 42
 OPTIMIZATION_LEVEL = 3
 TARGET_PRECISION = 0.1
 SMOKE_TEST_OBSERVATION = (0.05, -0.10, 0.02, 0.15)
-RESULTS_DIRECTORY = Path(__file__).with_name("results")
+RESULTS_DIRECTORY = Path(__file__).with_name("artifacts") / "ibm" / "validation"
 
 
 @dataclass(frozen=True)

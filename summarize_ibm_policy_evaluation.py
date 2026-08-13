@@ -10,9 +10,9 @@ from pathlib import Path
 import numpy as np
 
 
-DEFAULT_INPUT = Path("results/ibm_policy_evaluation_d9ulamt35hes73fk3400.json")
-DEFAULT_JSON = Path("results/ibm_policy_hardware_summary.json")
-DEFAULT_MARKDOWN = Path("results/ibm_policy_hardware_summary.md")
+DEFAULT_INPUT = Path("artifacts/ibm/core/ibm_policy_evaluation_d9ulamt35hes73fk3400.json")
+DEFAULT_JSON = Path("artifacts/ibm/core/ibm_policy_hardware_summary.json")
+DEFAULT_MARKDOWN = Path("artifacts/ibm/core/ibm_policy_hardware_summary.md")
 
 
 def summarize(result: dict) -> dict:
@@ -33,7 +33,7 @@ def summarize(result: dict) -> dict:
 
     return {
         "status": "preliminary_hardware_evaluation",
-        "source_result": f"results/ibm_policy_evaluation_{result['job_id']}.json",
+        "source_result": f"artifacts/ibm/core/ibm_policy_evaluation_{result['job_id']}.json",
         "backend": result["backend"],
         "job_id": result["job_id"],
         "target_precision": result["target_precision"],

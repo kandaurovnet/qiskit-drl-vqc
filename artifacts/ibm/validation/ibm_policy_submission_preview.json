@@ -4,7 +4,7 @@
   "qpu_job_submitted": false,
   "checkpoint": "results/quantum_policy.pt",
   "checkpoint_sha256": "d25cea8e17336477eea5ff546144c56c9d8b10a4a89f8ccd2d1aba6b2c5032c8",
-  "source_preview": "results/ibm_policy_preview.json",
+  "source_preview": "artifacts/ibm/validation/ibm_policy_preview.json",
   "backend": {
     "name": "ibm_marrakesh",
     "num_qubits": 156,

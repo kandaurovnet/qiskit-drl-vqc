@@ -20,8 +20,8 @@ from prepare_ibm_policy_submission import (
 )
 
 
-DEFAULT_MANIFEST = Path("results/ibm_policy_submission_preview.json")
-RESULTS_DIRECTORY = Path("results")
+DEFAULT_MANIFEST = Path("artifacts/ibm/validation/ibm_policy_submission_preview.json")
+RESULTS_DIRECTORY = Path("artifacts/ibm/core")
 
 
 def _safe_job_id(job_id: str) -> str:

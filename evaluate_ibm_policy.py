@@ -25,7 +25,7 @@ from vqc import N_LAYERS, VQCQNetwork, build_observables, build_qnetwork_circuit
 
 
 DEFAULT_CHECKPOINT = Path("results/quantum_policy.pt")
-DEFAULT_OUTPUT = Path("results/ibm_policy_preview.json")
+DEFAULT_OUTPUT = Path("artifacts/ibm/validation/ibm_policy_preview.json")
 DEFAULT_SEED_START = 10_000
 # Torch executes the circuit in float32, while Qiskit statevector simulation
 # uses float64.  The trained output scale is approximately 100, so sub-micro

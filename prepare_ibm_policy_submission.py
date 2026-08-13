@@ -29,8 +29,8 @@ from ibm_backend_inference import (
 
 
 DEFAULT_CHECKPOINT = Path("results/quantum_policy.pt")
-DEFAULT_PREVIEW = Path("results/ibm_policy_preview.json")
-DEFAULT_OUTPUT = Path("results/ibm_policy_submission_preview.json")
+DEFAULT_PREVIEW = Path("artifacts/ibm/validation/ibm_policy_preview.json")
+DEFAULT_OUTPUT = Path("artifacts/ibm/validation/ibm_policy_submission_preview.json")
 
 
 def _sha256(path: Path) -> str:

@@ -1,14 +1,14 @@
 {
-  "submitted_at_utc": "2026-08-13T05:25:48.271861+00:00",
-  "status": "completed",
+  "submitted_at_utc": "2026-08-13T04:54:27.091731+00:00",
+  "status": "partial_broadcast_result",
   "qpu_job_submitted": true,
   "backend": "ibm_marrakesh",
-  "job_id": "d9ulamt35hes73fk3400",
+  "job_id": "d9uks0l35hes73fk2fv0",
   "target_precision": 0.1,
   "checkpoint": "results/quantum_policy.pt",
   "checkpoint_sha256": "d25cea8e17336477eea5ff546144c56c9d8b10a4a89f8ccd2d1aba6b2c5032c8",
-  "source_preview": "results/ibm_policy_preview.json",
-  "source_submission_preview": "results/ibm_policy_submission_preview.json",
+  "source_preview": "artifacts/ibm/validation/ibm_policy_preview.json",
+  "source_submission_preview": "artifacts/ibm/validation/ibm_policy_submission_preview.json",
   "output_scale": [
     124.92679595947266,
     -136.2405548095703
@@ -90,58 +90,15 @@
   "original_depth": 24,
   "isa_depth": 93,
   "two_qubit_gates": 34,
-  "completed_at_utc": "2026-08-13T06:05:37.406890+00:00",
-  "runtime_results": [
-    {
-      "state_index": 0,
-      "evaluation_seed": 10000,
-      "step": 195,
-      "runtime_expectations": [
-        0.7392046200288752,
-        -0.6776328228398563
-      ],
-      "runtime_q_values": [
-        92.3464647386468,
-        92.32107174087729
-      ],
-      "runtime_action": 0,
-      "exact_qiskit_q_values": [
-        101.71865335552417,
-        89.46975238561741
-      ],
-      "exact_action": 0,
-      "action_agreement": true,
-      "absolute_q_value_error": [
-        9.372188616877366,
-        2.851319355259875
-      ]
-    },
-    {
-      "state_index": 1,
-      "evaluation_seed": 10000,
-      "step": 228,
-      "runtime_expectations": [
-        0.6048037800236251,
-        -0.661498708010336
-      ],
-      "runtime_q_values": [
-        75.55619842252919,
-        90.12295098514213
-      ],
-      "runtime_action": 1,
-      "exact_qiskit_q_values": [
-        87.36141897620614,
-        101.61679296601253
-      ],
-      "exact_action": 1,
-      "action_agreement": true,
-      "absolute_q_value_error": [
-        11.805220553676946,
-        11.4938419808704
-      ]
-    }
+  "completed_at_utc": "2026-08-13T05:18:55.032068+00:00",
+  "runtime_expectations": [
+    0.7362300718974679,
+    -0.67807997932683
   ],
-  "action_agreement_count": 2,
-  "action_agreement_rate": 1.0,
-  "max_absolute_q_value_error": 11.805220553676946
+  "broadcast_pairing": [
+    "state_0_observable_0",
+    "state_1_observable_1"
+  ],
+  "result_complete": false,
+  "note": "The two parameter sets and two observables were paired element-wise. This job is retained as a partial result and must not be used for action comparison."
 }
