@@ -72,6 +72,52 @@ python cartpole_dqn.py --agent classical --tag _zoo
 python cartpole_dqn.py --agent quantum --tag _quantum
 ```
 
+The same experiment orchestrator also exposes an evaluation-only IBM hardware
+path for the already-trained VQC checkpoint:
+
+```bash
+python run_experiment.py --agents ibm --seeds 10000 --ibm-max-steps 10 \
+  --ibm-output results/ibm_cartpole_run.json
+```
+
+This runs one greedy CartPole episode capped at 10 sequential environment
+steps and writes the familiar artifact triplet:
+
+- `results/ibm_cartpole_policy.pt`
+- `results/ibm_cartpole_run.json`
+- `results/ibm_cartpole_evaluation.png`
+
+It does **not** train on IBM
+hardware: it loads `results/quantum_policy.pt`, submits one Runtime Estimator
+job per step, selects `argmax(Q)`, and advances the same `CartPole-v1`
+environment. The IBM policy artifact is therefore an exact copy of the frozen
+Torch-trained checkpoint. Its plot is deliberately named `evaluation.png`, not
+`training.png`, because IBM Runtime does not run the optimizer or produce a
+training loss. If waiting is interrupted, resume without duplicating the
+pending job:
+
+```bash
+python run_experiment.py --agents ibm --seeds 10000 --ibm-max-steps 10 \
+  --ibm-output results/ibm_cartpole_run.json --ibm-resume
+```
+
+Because the IBM demonstration is one capped episode while the local agents use
+many full evaluation episodes, its reward is not a fair performance ranking.
+The committed 10-step run is complete. A longer, resumable 50-step run uses a
+separate output stem so it cannot overwrite the completed artifacts:
+
+```bash
+python run_experiment.py --agents ibm --seeds 0 --ibm-max-steps 50 \
+  --ibm-output results/ibm_cartpole_50step_run.json
+```
+
+After completion, its associated files are
+`results/ibm_cartpole_50step_policy.pt` and
+`results/ibm_cartpole_50step_evaluation.png`. Progress is saved after every
+submitted and completed step; resume with the same arguments plus
+`--ibm-resume`. IBM results provide hardware deployment and robustness
+evidence, while Classical and Quantum Torch remain the training comparison.
+
 Useful flags: `--seed` (default 0), `--total-steps`, `--lr`, `--train-freq`,
 `--gradient-steps`, `--target-update-every-steps`, `--eps-end`, `--double-dqn`,
 `--tag`, `--out-dir`. Always pass a distinct `--tag` so runs write to separate

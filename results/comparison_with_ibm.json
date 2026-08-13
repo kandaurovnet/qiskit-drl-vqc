@@ -1,0 +1,44 @@
+{
+  "config": {
+    "agents": [
+      "ibm"
+    ],
+    "seeds": [
+      10000
+    ],
+    "episodes": 2000,
+    "total_steps": 50000,
+    "batch_size": 64,
+    "train_freq": 256,
+    "gradient_steps": 128,
+    "lr_classical": 0.0023,
+    "lr_quantum": 0.001,
+    "n_layers": 3,
+    "quantum_backend": "torch",
+    "ibm_backend": "ibm_marrakesh",
+    "ibm_account": "cartpole-vqc",
+    "ibm_checkpoint": "results/quantum_policy.pt",
+    "ibm_output": "results/ibm_cartpole_run.json",
+    "ibm_max_steps": 10,
+    "ibm_target_precision": 0.1,
+    "ibm_resume": false,
+    "double_dqn": false,
+    "out_dir": "results",
+    "smoke": false
+  },
+  "summary": [
+    {
+      "agent": "ibm",
+      "params": 46,
+      "seeds": 1,
+      "greedy_mean": 10.0,
+      "greedy_spread": [
+        10.0,
+        10.0
+      ],
+      "solved": 0,
+      "episodes": 1,
+      "wall_sec": 218.41311526298523
+    }
+  ]
+}

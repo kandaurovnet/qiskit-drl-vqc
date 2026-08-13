@@ -1,0 +1,123 @@
+{
+  "status": "running",
+  "agent": "ibm",
+  "environment": "CartPole-v1",
+  "evaluation_only": true,
+  "policy_source": "trained quantum VQC checkpoint",
+  "checkpoint": "results/quantum_policy.pt",
+  "inference_backend": "ibm_marrakesh",
+  "execution": "qiskit_ibm_runtime.EstimatorV2",
+  "params": 46,
+  "seed": 0,
+  "episodes_requested": 1,
+  "max_steps": 50,
+  "target_precision": 0.1,
+  "original_depth": 24,
+  "isa_depth": 93,
+  "two_qubit_gates": 34,
+  "started_at_utc": "2026-08-13T08:52:02.049882+00:00",
+  "elapsed_sec": 2203.3534018993378,
+  "steps": [
+    {
+      "step": 0,
+      "job_id": "d9uobcou5hac73ahg440",
+      "observation": [
+        0.013696168549358845,
+        -0.023021329194307327,
+        -0.04590264707803726,
+        -0.04834723472595215
+      ],
+      "normalized_observation": [
+        0.005706736817955971,
+        -0.007673776242882013,
+        -0.21910572052001953,
+        -0.016115745529532433
+      ],
+      "expectation_values": [
+        0.6426487550037316,
+        -0.6383641917586186
+      ],
+      "q_values": [
+        80.28404988996031,
+        86.97109165575714
+      ],
+      "action": 1,
+      "reward": 1.0,
+      "terminated": false,
+      "truncated": false
+    },
+    {
+      "step": 1,
+      "job_id": "d9uobn535hes73fk6pv0",
+      "observation": [
+        0.013235742226243019,
+        0.17272774875164032,
+        -0.04686959087848663,
+        -0.3551521897315979
+      ],
+      "normalized_observation": [
+        0.005514892283827066,
+        0.05757591500878334,
+        -0.2237211912870407,
+        -0.11838406324386597
+      ],
+      "expectation_values": [
+        0.4136705178960976,
+        -0.37117821345268864
+      ],
+      "q_values": [
+        51.67853238365517,
+        50.569525734019415
+      ],
+      "action": 0,
+      "reward": 1.0,
+      "terminated": false,
+      "truncated": false
+    },
+    {
+      "step": 2,
+      "job_id": "d9uoknj43mgs73et8hqg",
+      "observation": [
+        0.016690297052264214,
+        -0.021697547286748886,
+        -0.05397263541817665,
+        -0.07760915160179138
+      ],
+      "normalized_observation": [
+        0.006954289972782135,
+        -0.0072325156070292,
+        -0.257625937461853,
+        -0.025869717821478844
+      ],
+      "expectation_values": [
+        0.7851525636992766,
+        -0.7249842668344871
+      ],
+      "q_values": [
+        98.08659412231638,
+        98.77225874174009
+      ],
+      "action": 1,
+      "reward": 1.0,
+      "terminated": false,
+      "truncated": false
+    }
+  ],
+  "pending_step": {
+    "step": 3,
+    "job_id": "d9uosjl35hes73fk7ch0",
+    "observation": [
+      0.016256345435976982,
+      0.17415492236614227,
+      -0.05552481859922409,
+      -0.38682031631469727
+    ],
+    "normalized_observation": [
+      0.006773476954549551,
+      0.058051642030477524,
+      -0.265034943819046,
+      -0.12894010543823242
+    ],
+    "submitted_at_utc": "2026-08-13T09:28:47.685559+00:00"
+  }
+}

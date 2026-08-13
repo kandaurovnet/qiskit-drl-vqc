@@ -1,0 +1,437 @@
+{
+  "status": "completed",
+  "agent": "ibm",
+  "environment": "CartPole-v1",
+  "evaluation_only": true,
+  "policy_source": "trained quantum VQC checkpoint",
+  "checkpoint": "results/quantum_policy.pt",
+  "inference_backend": "ibm_marrakesh",
+  "execution": "qiskit_ibm_runtime.EstimatorV2",
+  "params": 46,
+  "seed": 10000,
+  "episodes_requested": 1,
+  "max_steps": 10,
+  "target_precision": 0.1,
+  "original_depth": 24,
+  "isa_depth": 93,
+  "two_qubit_gates": 34,
+  "started_at_utc": "2026-08-13T07:24:57.833742+00:00",
+  "elapsed_sec": 204.20137095451355,
+  "steps": [
+    {
+      "step": 0,
+      "job_id": "d9un2ir43mgs73et6ofg",
+      "observation": [
+        0.0016690401826053858,
+        -0.00763008464127779,
+        0.00742756761610508,
+        -0.028407864272594452
+      ],
+      "normalized_observation": [
+        0.0006954334094189107,
+        -0.0025433616247028112,
+        0.035453785210847855,
+        -0.009469288401305676
+      ],
+      "expectation_values": [
+        0.6823027718550106,
+        -0.5745994139285492
+      ],
+      "q_values": [
+        85.23789916211354,
+        78.28374294687949
+      ],
+      "action": 0,
+      "reward": 1.0,
+      "terminated": false,
+      "truncated": false,
+      "torch_exact_q_values": [
+        93.72119140625,
+        93.07121276855469
+      ],
+      "torch_exact_action": 0,
+      "hardware_exact_action_agreement": true,
+      "absolute_q_value_error": [
+        8.483292244136464,
+        14.787469821675202
+      ]
+    },
+    {
+      "step": 1,
+      "job_id": "d9un2oou5hac73ahembg",
+      "observation": [
+        0.0015164385549724102,
+        -0.20285776257514954,
+        0.0068594105541706085,
+        0.266609251499176
+      ],
+      "normalized_observation": [
+        0.0006318493979051709,
+        -0.06761925667524338,
+        0.032741814851760864,
+        0.08886975049972534
+      ],
+      "expectation_values": [
+        0.7358288770053476,
+        -0.624429295140409
+      ],
+      "q_values": [
+        91.92474397873497,
+        85.07259360927826
+      ],
+      "action": 0,
+      "reward": 1.0,
+      "terminated": false,
+      "truncated": false,
+      "torch_exact_q_values": [
+        93.435546875,
+        93.541748046875
+      ],
+      "torch_exact_action": 1,
+      "hardware_exact_action_agreement": false,
+      "absolute_q_value_error": [
+        1.5108028962650337,
+        8.469154437596742
+      ]
+    },
+    {
+      "step": 2,
+      "job_id": "d9un2u343mgs73et6p50",
+      "observation": [
+        -0.0025407166685909033,
+        -0.3980769217014313,
+        0.012191595509648323,
+        0.56144779920578
+      ],
+      "normalized_observation": [
+        -0.001058631925843656,
+        -0.13269230723381042,
+        0.05819377303123474,
+        0.1871492713689804
+      ],
+      "expectation_values": [
+        0.7834475417470561,
+        -0.7054991857697608
+      ],
+      "q_values": [
+        97.87359119278491,
+        96.11760048697232
+      ],
+      "action": 0,
+      "reward": 1.0,
+      "terminated": false,
+      "truncated": false,
+      "torch_exact_q_values": [
+        92.15862274169922,
+        93.19971466064453
+      ],
+      "torch_exact_action": 1,
+      "hardware_exact_action_agreement": false,
+      "absolute_q_value_error": [
+        5.714968451085696,
+        2.9178858263277903
+      ]
+    },
+    {
+      "step": 3,
+      "job_id": "d9un32r43mgs73et6pbg",
+      "observation": [
+        -0.010502255521714687,
+        -0.5933678150177002,
+        0.023420551791787148,
+        0.8579466342926025
+      ],
+      "normalized_observation": [
+        -0.0043759397231042385,
+        -0.197789266705513,
+        0.11179260909557343,
+        0.285982221364975
+      ],
+      "expectation_values": [
+        0.465016146393972,
+        -0.5921110208164031
+      ],
+      "q_values": [
+        58.092977238420005,
+        80.66953398488779
+      ],
+      "action": 1,
+      "reward": 1.0,
+      "terminated": false,
+      "truncated": false,
+      "torch_exact_q_values": [
+        89.46369171142578,
+        91.86698150634766
+      ],
+      "torch_exact_action": 1,
+      "hardware_exact_action_agreement": true,
+      "absolute_q_value_error": [
+        31.370714473005776,
+        11.197447521459864
+      ]
+    },
+    {
+      "step": 4,
+      "job_id": "d9un37ou5hac73ahemug",
+      "observation": [
+        -0.022369612008333206,
+        -0.3985726535320282,
+        0.04057948291301727,
+        0.5727189779281616
+      ],
+      "normalized_observation": [
+        -0.009320671670138836,
+        -0.132857546210289,
+        0.19369681179523468,
+        0.1909063309431076
+      ],
+      "expectation_values": [
+        0.5129575207053166,
+        -0.575244990949379
+      ],
+      "q_values": [
+        64.08213952503006,
+        78.37169671836965
+      ],
+      "action": 1,
+      "reward": 1.0,
+      "terminated": false,
+      "truncated": false,
+      "torch_exact_q_values": [
+        88.4341812133789,
+        91.41130828857422
+      ],
+      "torch_exact_action": 1,
+      "hardware_exact_action_agreement": true,
+      "absolute_q_value_error": [
+        24.352041688348848,
+        13.03961157020457
+      ]
+    },
+    {
+      "step": 5,
+      "job_id": "d9un3cou5hac73ahen5g",
+      "observation": [
+        -0.03034106455743313,
+        -0.2040424793958664,
+        0.052033863961696625,
+        0.2930910289287567
+      ],
+      "normalized_observation": [
+        -0.012642109766602516,
+        -0.06801415979862213,
+        0.2483716607093811,
+        0.09769701212644577
+      ],
+      "expectation_values": [
+        0.5604351864136925,
+        -0.6073167686352853
+      ],
+      "q_values": [
+        70.01337218161238,
+        82.74117350402672
+      ],
+      "action": 1,
+      "reward": 1.0,
+      "terminated": false,
+      "truncated": false,
+      "torch_exact_q_values": [
+        88.32715606689453,
+        91.09207153320312
+      ],
+      "torch_exact_action": 1,
+      "hardware_exact_action_agreement": true,
+      "absolute_q_value_error": [
+        18.31378388528215,
+        8.350898029176406
+      ]
+    },
+    {
+      "step": 6,
+      "job_id": "d9un3hgu5hac73aheni0",
+      "observation": [
+        -0.03442191332578659,
+        -0.00969952717423439,
+        0.057895682752132416,
+        0.01726219803094864
+      ],
+      "normalized_observation": [
+        -0.014342463575303555,
+        -0.0032331757247447968,
+        0.2763517200946808,
+        0.005754066165536642
+      ],
+      "expectation_values": [
+        0.5069976234486401,
+        -0.47979009183482224
+      ],
+      "q_values": [
+        63.33758865650581,
+        65.36686830371087
+      ],
+      "action": 1,
+      "reward": 1.0,
+      "terminated": false,
+      "truncated": false,
+      "torch_exact_q_values": [
+        88.92601776123047,
+        90.82919311523438
+      ],
+      "torch_exact_action": 1,
+      "hardware_exact_action_agreement": true,
+      "absolute_q_value_error": [
+        25.58842910472466,
+        25.4623248115235
+      ]
+    },
+    {
+      "step": 7,
+      "job_id": "d9un3mk98n5s7393353g",
+      "observation": [
+        -0.034615904092788696,
+        0.18454639613628387,
+        0.05824092775583267,
+        -0.25660666823387146
+      ],
+      "normalized_observation": [
+        -0.014423293061554432,
+        0.06151546537876129,
+        0.2779996693134308,
+        -0.08553555607795715
+      ],
+      "expectation_values": [
+        0.6622007030576375,
+        -0.7189664856768395
+      ],
+      "q_values": [
+        82.72661211510082,
+        97.9523928980996
+      ],
+      "action": 1,
+      "reward": 1.0,
+      "terminated": false,
+      "truncated": false,
+      "torch_exact_q_values": [
+        89.9281005859375,
+        90.39412689208984
+      ],
+      "torch_exact_action": 1,
+      "hardware_exact_action_agreement": true,
+      "absolute_q_value_error": [
+        7.201488470836679,
+        7.5582660060097595
+      ]
+    },
+    {
+      "step": 8,
+      "job_id": "d9un3rl35hes73fk5cvg",
+      "observation": [
+        -0.030924977734684944,
+        0.37879055738449097,
+        0.05310879275202751,
+        -0.5303657650947571
+      ],
+      "normalized_observation": [
+        -0.012885406613349915,
+        0.12626351416110992,
+        0.25350257754325867,
+        -0.1767885833978653
+      ],
+      "expectation_values": [
+        0.5553145336225597,
+        -0.5103731854713102
+      ],
+      "q_values": [
+        69.37366543519524,
+        69.53352594853902
+      ],
+      "action": 1,
+      "reward": 1.0,
+      "terminated": false,
+      "truncated": false,
+      "torch_exact_q_values": [
+        90.97013854980469,
+        89.54721069335938
+      ],
+      "torch_exact_action": 0,
+      "hardware_exact_action_agreement": false,
+      "absolute_q_value_error": [
+        21.596473114609452,
+        20.013684744820353
+      ]
+    },
+    {
+      "step": 9,
+      "job_id": "d9un40l35hes73fk5d5g",
+      "observation": [
+        -0.02334916591644287,
+        0.5731267929077148,
+        0.042501479387283325,
+        -0.8058524131774902
+      ],
+      "normalized_observation": [
+        -0.009728819131851196,
+        0.19104225933551788,
+        0.20287102460861206,
+        -0.2686174809932709
+      ],
+      "expectation_values": [
+        0.7271286082303983,
+        -0.5101189364219441
+      ],
+      "q_values": [
+        90.83784727669429,
+        69.49888691699358
+      ],
+      "action": 0,
+      "reward": 1.0,
+      "terminated": false,
+      "truncated": false,
+      "torch_exact_q_values": [
+        91.64644622802734,
+        88.14885711669922
+      ],
+      "torch_exact_action": 0,
+      "hardware_exact_action_agreement": true,
+      "absolute_q_value_error": [
+        0.8085989513330532,
+        18.649970199705635
+      ]
+    }
+  ],
+  "pending_step": null,
+  "completed_at_utc": "2026-08-13T07:28:22.054829+00:00",
+  "episodes_run": 1,
+  "episode_rewards": [
+    10.0
+  ],
+  "greedy_eval_rewards": [
+    10.0
+  ],
+  "greedy_eval_mean": 10.0,
+  "solved": false,
+  "terminated": false,
+  "environment_truncated": false,
+  "truncated_by_step_cap": true,
+  "job_ids": [
+    "d9un2ir43mgs73et6ofg",
+    "d9un2oou5hac73ahembg",
+    "d9un2u343mgs73et6p50",
+    "d9un32r43mgs73et6pbg",
+    "d9un37ou5hac73ahemug",
+    "d9un3cou5hac73ahen5g",
+    "d9un3hgu5hac73aheni0",
+    "d9un3mk98n5s7393353g",
+    "d9un3rl35hes73fk5cvg",
+    "d9un40l35hes73fk5d5g"
+  ],
+  "wall_sec": 204.20137095451355,
+  "policy_artifact": "results/ibm_cartpole_policy.pt",
+  "policy_artifact_role": "exact copy of frozen Torch-trained VQC checkpoint",
+  "evaluation_plot": "results/ibm_cartpole_evaluation.png",
+  "evaluation_plot_role": "IBM evaluation trajectory; no hardware training",
+  "torch_exact_reference": true,
+  "hardware_exact_action_agreement_count": 7,
+  "hardware_exact_action_agreement_rate": 0.7,
+  "max_absolute_q_value_error": 31.370714473005776
+}

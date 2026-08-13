@@ -24,6 +24,7 @@ import json
 import os
 import statistics
 import time
+from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
@@ -38,6 +39,23 @@ def run_one(agent, seed, args):
     """Train a single agent at a single seed and return its run_data."""
     tag = f"_s{seed}" if len(args.seeds) > 1 else ""
     print(f"\n{'=' * 70}\n{agent.upper()}  seed={seed}\n{'=' * 70}")
+
+    if agent == "ibm":
+        from run_ibm_cartpole import evaluate_ibm_cartpole
+
+        tic = time.time()
+        run = evaluate_ibm_cartpole(
+            checkpoint_path=Path(args.ibm_checkpoint),
+            output_path=Path(args.ibm_output),
+            backend_name=args.ibm_backend,
+            account_name=args.ibm_account,
+            seed=seed,
+            max_steps=args.ibm_max_steps,
+            target_precision=args.ibm_target_precision,
+            resume=args.ibm_resume,
+        )
+        run["wall_sec"] = time.time() - tic
+        return run
 
     if agent == "quantum":
         cartpole_dqn.QUANTUM_KWARGS = {
@@ -104,9 +122,9 @@ def print_summary(rows, solve_reward=475.0):
                   f"more parameters ({c['params']} vs {q['params']}).")
 
 
-def plot_comparison(results, out_dir, window=100):
+def plot_comparison(results, out_dir, window=100, filename="comparison.png"):
     fig, ax = plt.subplots(figsize=(9, 5), dpi=150)
-    colors = {"classical": "tab:blue", "quantum": "tab:purple"}
+    colors = {"classical": "tab:blue", "quantum": "tab:purple", "ibm": "tab:green"}
 
     for agent, runs in results.items():
         # Seeds can stop at different episode counts; pad to the longest with
@@ -129,7 +147,7 @@ def plot_comparison(results, out_dir, window=100):
     ax.set_title("CartPole-v1: classical DQN vs DRL+VQC")
     ax.legend()
     plt.tight_layout()
-    path = os.path.join(out_dir, "comparison.png")
+    path = os.path.join(out_dir, filename)
     plt.savefig(path)
     print(f"\nSaved comparison plot to {path}")
 
@@ -137,7 +155,7 @@ def plot_comparison(results, out_dir, window=100):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--agents", nargs="+", default=["classical", "quantum"],
-                   choices=["classical", "quantum"])
+                   choices=["classical", "quantum", "ibm"])
     p.add_argument("--seeds", nargs="+", type=int, default=[0])
     p.add_argument("--episodes", type=int, default=2000)
     p.add_argument("--total-steps", type=int, default=50_000)
@@ -152,11 +170,24 @@ def main():
     p.add_argument("--n-layers", type=int, default=3)
     p.add_argument("--quantum-backend", default="torch",
                    help="'torch' (fast, default) or 'qiskit' (exact, ~1900x slower)")
+    p.add_argument("--ibm-backend", default="ibm_marrakesh")
+    p.add_argument("--ibm-account", default="cartpole-vqc")
+    p.add_argument("--ibm-checkpoint", default="results/quantum_policy.pt")
+    p.add_argument("--ibm-output", default="results/ibm_cartpole_run.json")
+    p.add_argument("--ibm-max-steps", type=int, default=10)
+    p.add_argument("--ibm-target-precision", type=float, default=0.1)
+    p.add_argument("--ibm-resume", action="store_true",
+                   help="Resume the saved IBM run without resubmitting its pending step.")
     p.add_argument("--double-dqn", action="store_true")
     p.add_argument("--out-dir", default="results")
     p.add_argument("--smoke", action="store_true",
                    help="Short run to verify wiring end to end.")
     args = p.parse_args()
+
+    if "ibm" in args.agents and len(args.seeds) != 1:
+        p.error("IBM evaluation currently requires exactly one seed per output file.")
+    if args.ibm_output == "results/ibm_cartpole_run.json" and args.out_dir != "results":
+        args.ibm_output = os.path.join(args.out_dir, "ibm_cartpole_run.json")
 
     if args.smoke:
         # Step budget must be the binding limit, and must clear learning_starts
@@ -169,9 +200,11 @@ def main():
 
     rows = summarize(results)
     print_summary(rows)
-    plot_comparison(results, args.out_dir)
+    includes_ibm = "ibm" in args.agents
+    comparison_stem = "comparison_with_ibm" if includes_ibm else "comparison"
+    plot_comparison(results, args.out_dir, filename=f"{comparison_stem}.png")
 
-    path = os.path.join(args.out_dir, "comparison.json")
+    path = os.path.join(args.out_dir, f"{comparison_stem}.json")
     with open(path, "w") as f:
         json.dump({"config": vars(args), "summary": rows}, f, indent=2)
     print(f"Saved summary to {path}")
