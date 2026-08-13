@@ -116,8 +116,8 @@ def shape_reward(norm_obs: np.ndarray, base_reward: float, terminated: bool) -> 
     x, x_dot, theta, _theta_dot = norm_obs
     return (base_reward
             - 1.0 * abs(float(x))
-            - 2.0 * abs(float(theta))
-            - 5.0 * abs(float(x_dot))
+            - 8.0 * abs(float(theta))
+            - 1.0 * abs(float(x_dot))
             - (100.0 if terminated else 0.0))
 
 
@@ -643,9 +643,17 @@ if __name__ == "__main__":
                              "native +1/step reward (see shape_reward). Helps the classical "
                              "agent; use --no-reward-shaping for quantum (see train()'s "
                              "docstring comment on reward_shaping)")
+    parser.add_argument("--quantum-init", choices=["small","uniform","identity"],
+                        default="small",
+                        help="initial circuit angles: small N(0,0.1) near-identity "
+                             "(default), uniform U(-pi,pi), or identity (theta=0, "
+                             "DEGENERATE for this ansatz -- zero gradients)")
     parser.add_argument("--tag", type=str, default="",
                         help="suffix for output filenames, e.g. --tag _ddqn")
     args = parser.parse_args()
+
+    if args.agent == "quantum":
+        QUANTUM_KWARGS["init"] = args.quantum_init
 
     train(
         agent=args.agent,

@@ -154,6 +154,8 @@ class VQCQNetwork(nn.Module):
         shots: int | None = None,
         optimization_level: int = 1,
         noise_backend=None,
+        init: str = "small",
+        init_std: float = 0.1,
     ):
         """
         Args:
@@ -171,6 +173,25 @@ class VQCQNetwork(nn.Module):
                 standard error ~1/sqrt(shots). Ignored-as-exact is impossible on
                 hardware, so a backend without ``shots`` defaults to 1024.
             optimization_level: transpiler optimization level, hardware only.
+            init: how the circuit angles theta start.
+                ``"small"`` (default) draws N(0, init_std): near-identity, so
+                the circuit starts effectively shallow -- the point of Grant et
+                al. -- but with the qubit symmetry broken. Over 6 seeds it beats
+                ``"uniform"`` on every axis: greedy 482.0 vs 416.4, seed spread
+                40.1 vs 126.2, solved 5/6 vs 3/6, and 54% fewer steps.
+                ``"uniform"`` draws U(-pi, pi), the conventional choice.
+                ``"identity"`` sets every angle to 0 and is DEGENERATE for
+                this ansatz -- kept only so the failure stays documented. The
+                circuit opens with H, putting every qubit in |+>, an X
+                eigenstate, and encodes data with RX; since RX(x)|+> = |+> up
+                to a phase, zeroing the RZ/RY leaves nothing to rotate the
+                state off the X axis, so the input never reaches the
+                measurement. Measured: output identically 0 for every input and
+                zero gradient on all 96 parameters -- an exact saddle point.
+                Grant et al. (arXiv:1903.05076) assumes a generic
+                hardware-efficient ansatz and does not survive contact with an
+                H + RX-re-uploading circuit.
+            init_std: standard deviation used by ``init="small"``.
         """
         super().__init__()
         self.n_qubits = n_qubits
@@ -180,7 +201,15 @@ class VQCQNetwork(nn.Module):
         observables = build_observables(n_qubits)
 
         rng = np.random.default_rng(seed)
-        init_theta = rng.uniform(-np.pi, np.pi, size=len(theta_params))
+        if init == "identity":
+            init_theta = np.zeros(len(theta_params))
+        elif init == "small":
+            init_theta = rng.normal(0.0, init_std, size=len(theta_params))
+        elif init == "uniform":
+            init_theta = rng.uniform(-np.pi, np.pi, size=len(theta_params))
+        else:
+            raise ValueError(f"unknown init {init!r}; expected "
+                             "'uniform', 'identity' or 'small'")
 
         # Input scaling, one per (layer, feature). Starts at 1.0 so the initial
         # encoding angle is just the observation itself.
