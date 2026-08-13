@@ -1,22 +1,31 @@
 #!/usr/bin/env python3
 """
-Orchestrator: run the classical and quantum CartPole-v1 agents and compare them.
+Benchmark: classical DQN vs DRL+VQC on CartPole-v1, over multiple seeds.
 
 The two halves meet at exactly one place — ``cartpole_dqn.build_q_network()``
-returns either the classical MLP or ``vqc.VQCQNetwork``, and the DQN loop is
-otherwise identical. This script drives both under matched settings and writes a
-side-by-side comparison, so any difference is attributable to the network rather
-than to the training code.
+returns either a classical MLP or ``vqc.VQCQNetwork``, and the DQN loop is
+otherwise identical. Any difference is therefore attributable to the network.
 
-    python run_experiment.py                      # both agents, default budget
-    python run_experiment.py --agents quantum     # quantum only
-    python run_experiment.py --smoke              # 2-minute wiring check
-    python run_experiment.py --seeds 0 1 2        # repeat over seeds
+Three arms, because the obvious two-way comparison is misleading. The repo's
+classical baseline uses hidden=(256,256) = 67,586 parameters, 97% of which sit
+in a single 256x256 layer that CartPole's 4-in/2-out interface does not need.
+Beating that with 46 quantum parameters says more about the baseline being
+oversized than about quantum efficiency. The ``classical-small`` arm uses
+hidden=(6,) = 44 parameters, which is the honest like-for-like comparison.
 
-Runtime note: the quantum network defaults to the torch statevector backend
-(~8 ms per gradient step). The Qiskit parameter-shift path is ~1900x slower and
-is not viable for a full run; use ``--quantum-backend qiskit`` only on a smoke
-test, to confirm the two agree.
+    python run_experiment.py                     # 3 arms, 1 seed
+    python run_experiment.py --seeds 0 1 2 3 4   # averaged over 5 seeds
+    python run_experiment.py --smoke             # wiring check, ~3 min
+    python run_experiment.py --arms quantum      # one arm only
+
+Treat a single-seed result as indicative, not conclusive: the committed
+classical runs include both a solve (greedy 500.0) and a failure (greedy 111.4)
+at identical settings. Passing several seeds reports the median and the full
+spread instead, which is what any comparison between arms should rest on.
+
+Runtime note: the quantum arm uses the torch statevector backend (~8 ms per
+gradient step). ``--quantum-backend qiskit`` is ~1900x slower and is only
+practical on a smoke test, to confirm the two agree.
 """
 
 import argparse
@@ -33,147 +42,189 @@ import numpy as np
 import cartpole_dqn
 from cartpole_dqn import train
 
+# arm name -> (agent kind, network construction kwargs)
+ARMS = {
+    "classical":       ("classical", {"hidden": (256, 256)}),
+    "classical-small": ("classical", {"hidden": (6,)}),
+    "quantum":         ("quantum",   {}),
+}
 
-def run_one(agent, seed, args):
-    """Train a single agent at a single seed and return its run_data."""
-    tag = f"_s{seed}" if len(args.seeds) > 1 else ""
-    print(f"\n{'=' * 70}\n{agent.upper()}  seed={seed}\n{'=' * 70}")
+
+def run_one(arm, seed, args):
+    """Train one arm at one seed; returns run_data."""
+    agent, kwargs = ARMS[arm]
+    print(f"\n{'=' * 72}\n{arm.upper()}  seed={seed}\n{'=' * 72}")
 
     if agent == "quantum":
         cartpole_dqn.QUANTUM_KWARGS = {
-            "n_layers": args.n_layers,
-            "backend": args.quantum_backend,
-            "seed": seed,
-        }
+            "n_layers": args.n_layers, "backend": args.quantum_backend, "seed": seed}
+    else:
+        cartpole_dqn.CLASSICAL_KWARGS = dict(kwargs)
+
+    # Name runs by arm, not by agent: both classical arms share agent
+    # "classical" and would otherwise overwrite each other's output files.
+    name = f"{arm}_s{seed}"
 
     tic = time.time()
     run = train(
         agent=agent,
         episodes=args.episodes,
         total_steps=args.total_steps,
-        batch_size=args.batch_size,
-        train_freq=args.train_freq,
-        gradient_steps=args.gradient_steps,
-        lr=args.lr_classical if agent == "classical" else args.lr_quantum,
+        lr=args.lr_quantum if agent == "quantum" else args.lr_classical,
+        eval_every_steps=args.eval_every_steps,
+        eval_episodes=args.eval_episodes,
         seed=seed,
         out_dir=args.out_dir,
-        double_dqn=args.double_dqn,
-        tag=tag,
+        name=name,
     )
-    run["wall_sec"] = time.time() - tic
-    run["seed"] = seed
+    run.update(arm=arm, seed=seed, wall_sec=time.time() - tic,
+               checkpoint=os.path.join(args.out_dir, f"{name}_policy.pt"))
     return run
 
 
 def summarize(results):
-    """Aggregate runs per agent into a printable comparison table."""
     rows = []
-    for agent, runs in results.items():
+    for arm, runs in results.items():
         greedy = [r["greedy_eval_mean"] for r in runs]
         rows.append({
-            "agent": agent,
+            "arm": arm,
             "params": runs[0]["params"],
             "seeds": len(runs),
+            "greedy_median": statistics.median(greedy),
             "greedy_mean": statistics.mean(greedy),
-            "greedy_spread": (min(greedy), max(greedy)),
+            "greedy_min": min(greedy),
+            "greedy_max": max(greedy),
             "solved": sum(r["solved"] for r in runs),
-            "episodes": statistics.mean(r["episodes_run"] for r in runs),
             "wall_sec": statistics.mean(r["wall_sec"] for r in runs),
         })
-    return rows
+    return sorted(rows, key=lambda r: -r["greedy_median"])
 
 
 def print_summary(rows, solve_reward=475.0):
-    print(f"\n{'=' * 78}\nRESULTS\n{'=' * 78}")
-    print(f"{'agent':<12}{'params':>8}{'greedy eval':>14}{'range':>18}"
-          f"{'solved':>9}{'episodes':>10}{'wall':>9}")
-    print("-" * 78)
+    print(f"\n{'=' * 84}\nRESULTS   median over seeds; 'solved' = greedy mean >= "
+          f"{solve_reward:.0f}\n{'=' * 84}")
+    print(f"{'arm':<18}{'params':>8}{'median':>10}{'mean':>9}{'min':>8}{'max':>8}"
+          f"{'solved':>9}{'wall':>10}")
+    print("-" * 84)
     for r in rows:
-        lo, hi = r["greedy_spread"]
-        print(f"{r['agent']:<12}{r['params']:>8}{r['greedy_mean']:>14.1f}"
-              f"{f'{lo:.0f} - {hi:.0f}':>18}{f'{r['solved']}/{r['seeds']}':>9}"
-              f"{r['episodes']:>10.0f}{r['wall_sec']:>8.0f}s")
-    print("-" * 78)
-    print(f"'solved' = greedy policy mean >= {solve_reward:.0f} over the eval episodes.")
-
-    if len(rows) == 2:
-        c = next((r for r in rows if r["agent"] == "classical"), None)
-        q = next((r for r in rows if r["agent"] == "quantum"), None)
-        if c and q:
-            print(f"\nParameter ratio: classical uses {c['params'] / q['params']:.0f}x "
-                  f"more parameters ({c['params']} vs {q['params']}).")
+        solved = f"{r['solved']}/{r['seeds']}"
+        print(f"{r['arm']:<18}{r['params']:>8}{r['greedy_median']:>10.1f}"
+              f"{r['greedy_mean']:>9.1f}{r['greedy_min']:>8.0f}{r['greedy_max']:>8.0f}"
+              f"{solved:>9}{r['wall_sec']:>9.0f}s")
+    print("-" * 84)
 
 
-def plot_comparison(results, out_dir, window=100):
-    fig, ax = plt.subplots(figsize=(9, 5), dpi=150)
-    colors = {"classical": "tab:blue", "quantum": "tab:purple"}
+def plot_curves(results, out_dir, window=50):
+    """Median training curve per arm, with the inter-seed spread shaded."""
+    fig, (ax_t, ax_e) = plt.subplots(1, 2, figsize=(13, 5), dpi=150)
+    colors = {"classical": "tab:blue", "classical-small": "tab:cyan",
+              "quantum": "tab:purple"}
 
-    for agent, runs in results.items():
-        # Seeds can stop at different episode counts; pad to the longest with
-        # the final value so the mean curve does not jump when a run ends.
+    for arm, runs in results.items():
+        col = colors.get(arm)
         longest = max(len(r["episode_rewards"]) for r in runs)
-        padded = [r["episode_rewards"] + [r["episode_rewards"][-1]] *
-                  (longest - len(r["episode_rewards"])) for r in runs]
-        curve = np.mean(padded, axis=0)
-        if len(curve) >= window:
-            smooth = np.convolve(curve, np.ones(window) / window, mode="valid")
-            xs = range(window - 1, len(curve))
+        # Pad short runs with their final value, so the median does not lurch
+        # downward when one seed stops earlier than the others.
+        padded = np.array([r["episode_rewards"] + [r["episode_rewards"][-1]] *
+                           (longest - len(r["episode_rewards"])) for r in runs])
+        med = np.median(padded, axis=0)
+        lo = np.percentile(padded, 25, axis=0)
+        hi = np.percentile(padded, 75, axis=0)
+        if len(med) >= window:
+            k = np.ones(window) / window
+            med, lo, hi = (np.convolve(v, k, mode="valid") for v in (med, lo, hi))
+            xs = np.arange(window - 1, longest)
         else:
-            smooth, xs = curve, range(len(curve))
-        label = f"{agent} ({runs[0]['params']} params)"
-        ax.plot(xs, smooth, label=label, color=colors.get(agent))
+            xs = np.arange(longest)
+        ax_t.plot(xs, med, color=col, label=f"{arm} ({runs[0]['params']} params)")
+        ax_t.fill_between(xs, lo, hi, color=col, alpha=0.15)
 
-    ax.axhline(475, color="green", linestyle="--", alpha=0.5, label="solved (475)")
-    ax.set_xlabel("Episode")
-    ax.set_ylabel(f"Reward (mean of {window})")
-    ax.set_title("CartPole-v1: classical DQN vs DRL+VQC")
-    ax.legend()
+        # Greedy evaluation is the metric 'solved' is actually judged on, and
+        # unlike training reward it is not depressed by exploration noise.
+        if runs[0].get("eval_history"):
+            n = min(len(r["eval_history"]) for r in runs)
+            steps = [s for s, _ in runs[0]["eval_history"][:n]]
+            scores = np.median([[v for _, v in r["eval_history"][:n]] for r in runs], axis=0)
+            ax_e.plot(steps, scores, color=col, marker="o", ms=3, label=arm)
+
+    for ax, title, xlabel in (
+            (ax_t, f"Training reward (median, {window}-episode mean)", "Episode"),
+            (ax_e, "Greedy evaluation during training", "Environment step")):
+        ax.axhline(475, color="green", ls="--", alpha=0.5, label="solved (475)")
+        ax.set_title(title)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel("Reward")
+        ax.legend()
+
+    plt.suptitle("CartPole-v1: classical DQN vs DRL+VQC")
     plt.tight_layout()
-    path = os.path.join(out_dir, "comparison.png")
+    path = os.path.join(out_dir, "benchmark_curves.png")
     plt.savefig(path)
-    print(f"\nSaved comparison plot to {path}")
+    plt.close(fig)
+    print(f"Saved training plots to {path}")
+
+
+def make_gifs(results, out_dir):
+    """Animate the best seed of each arm."""
+    try:
+        from watch import animate, load_policy_net, rollout
+    except ImportError as exc:
+        print(f"(skipping GIFs: {exc})")
+        return
+    for arm, runs in results.items():
+        best = max(runs, key=lambda r: r["greedy_eval_mean"])
+        if not os.path.exists(best["checkpoint"]):
+            print(f"(skipping {arm} GIF: {best['checkpoint']} not found)")
+            continue
+        net = load_policy_net(best["checkpoint"])
+        states = rollout(net, seed=0)
+        path = os.path.join(out_dir, f"{arm}_solved.gif")
+        animate(states, path, stride=2)
+        print(f"Saved {path}  ({len(states) - 1} steps, seed {best['seed']}, "
+              f"greedy {best['greedy_eval_mean']:.0f})")
 
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--agents", nargs="+", default=["classical", "quantum"],
-                   choices=["classical", "quantum"])
-    p.add_argument("--seeds", nargs="+", type=int, default=[0])
-    p.add_argument("--episodes", type=int, default=2000)
-    p.add_argument("--total-steps", type=int, default=50_000)
-    p.add_argument("--batch-size", type=int, default=64)
-    p.add_argument("--train-freq", type=int, default=256)
-    p.add_argument("--gradient-steps", type=int, default=128)
-    # The classical default is the RL-Zoo tuned value. The quantum network wants
-    # a smaller rate on the circuit angles; its output scaling is separately
-    # driven at 0.1 by VQCQNetwork.parameter_groups().
+    p.add_argument("--arms", nargs="+", default=list(ARMS), choices=list(ARMS))
+    p.add_argument("--seeds", nargs="+", type=int, default=[0],
+                   help="One seed by default. Pass several (e.g. --seeds 0 1 2 3 4) "
+                        "to get medians and the inter-seed spread.")
+    p.add_argument("--episodes", type=int, default=4000)
+    p.add_argument("--total-steps", type=int, default=100_000)
     p.add_argument("--lr-classical", type=float, default=2.3e-3)
     p.add_argument("--lr-quantum", type=float, default=1e-3)
-    p.add_argument("--n-layers", type=int, default=3)
-    p.add_argument("--quantum-backend", default="torch",
-                   help="'torch' (fast, default) or 'qiskit' (exact, ~1900x slower)")
-    p.add_argument("--double-dqn", action=argparse.BooleanOptionalAction, default=True)
-    p.add_argument("--out-dir", default="results")
-    p.add_argument("--smoke", action="store_true",
-                   help="Short run to verify wiring end to end.")
+    p.add_argument("--n-layers", type=int, default=5)
+    p.add_argument("--eval-every-steps", type=int, default=5000)
+    p.add_argument("--eval-episodes", type=int, default=5)
+    p.add_argument("--quantum-backend", default="torch")
+    p.add_argument("--out-dir", default="results/benchmark")
+    p.add_argument("--smoke", action="store_true")
     args = p.parse_args()
 
     if args.smoke:
-        # Step budget must be the binding limit, and must clear learning_starts
-        # (1000) or no gradient step ever runs and the check proves nothing.
-        args.total_steps = 4000
-        print("SMOKE MODE: 4k steps — checks wiring, not performance.\n")
+        # Step budget must be the binding limit and must clear learning_starts
+        # (1000), or no gradient step runs and the check proves nothing.
+        args.total_steps, args.seeds = 6000, [0]
+        args.eval_every_steps = 2000
+        print("SMOKE MODE: 6k steps, 1 seed — checks wiring, not performance.\n")
 
     os.makedirs(args.out_dir, exist_ok=True)
-    results = {a: [run_one(a, s, args) for s in args.seeds] for a in args.agents}
+    results = {a: [run_one(a, s, args) for s in args.seeds] for a in args.arms}
 
     rows = summarize(results)
     print_summary(rows)
-    plot_comparison(results, args.out_dir)
+    plot_curves(results, args.out_dir)
+    make_gifs(results, args.out_dir)
 
-    path = os.path.join(args.out_dir, "comparison.json")
+    path = os.path.join(args.out_dir, "benchmark.json")
     with open(path, "w") as f:
-        json.dump({"config": vars(args), "summary": rows}, f, indent=2)
+        json.dump({
+            "config": vars(args),
+            "summary": rows,
+            "runs": {a: [{k: v for k, v in r.items() if k != "episode_rewards"}
+                         for r in rs] for a, rs in results.items()},
+        }, f, indent=2)
     print(f"Saved summary to {path}")
 
 

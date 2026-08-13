@@ -100,12 +100,15 @@ class ClassicalQNetwork(nn.Module):
 # Construction options for the quantum network, e.g. {"n_layers": 5} or
 # {"backend": "qiskit"}. run_experiment.py sets this; defaults are vqc.py's.
 QUANTUM_KWARGS: dict = {}
+# Construction options for the classical network, e.g. {"hidden": (6,)} to get a
+# parameter-matched baseline instead of the oversized default.
+CLASSICAL_KWARGS: dict = {}
 
 
 def build_q_network(agent: str) -> nn.Module:
     """Factory returning a network that satisfies the interface above."""
     if agent == "classical":
-        return ClassicalQNetwork()
+        return ClassicalQNetwork(**CLASSICAL_KWARGS)
     elif agent == "quantum":
         # Imported lazily so the classical baseline does not require qiskit.
         from vqc import VQCQNetwork
@@ -203,6 +206,13 @@ def train(
     train_freq: int = 256,
     gradient_steps: int = 128,
     learning_starts: int = 1000,
+    # DQN on CartPole oscillates: a run can reach a strong policy and then train
+    # past it. The committed classical_base run peaked at best_mean_100 352.9 but
+    # finished at greedy 111.4. Evaluating periodically and keeping the best
+    # weights recovers that policy instead of discarding it -- the same thing
+    # SB3's EvalCallback(best_model_save_path=...) does in stable_dqn.py.
+    eval_every_steps: int = 5000,
+    eval_episodes: int = 5,
     replay_capacity: int = 100_000,
     lr: float = 2.3e-3,
     solve_reward: float = 475.0,
@@ -211,8 +221,12 @@ def train(
     seed: int = 0,
     double_dqn: bool = True,
     tag: str = "",
+    name: str = "",
 ):
-    name = f"{agent}{tag}"
+    # `name` prefixes every output file. It defaults to agent+tag, but callers
+    # that run several variants of one agent (e.g. two classical widths) need to
+    # name runs themselves, or both would write to the same files.
+    name = name or f"{agent}{tag}"
     os.makedirs(out_dir, exist_ok=True)
     random.seed(seed)
     np.random.seed(seed)
@@ -241,6 +255,9 @@ def train(
     episode_rewards = []
     episode_losses = []
     steps_done = 0
+    best_eval = -float("inf")
+    best_state = None
+    eval_history = []          # (step, greedy mean) for the training plot
     tic = time.time()
 
     # Track the best checkpoint by periodic greedy eval, mirroring the
@@ -297,6 +314,16 @@ def train(
             if steps_done % target_update_every_steps == 0:
                 target_net.load_state_dict(policy_net.state_dict())
 
+            # Snapshot the best greedy policy seen, not merely the last one.
+            if steps_done >= learning_starts and steps_done % eval_every_steps == 0:
+                score = float(np.mean(evaluate(policy_net, episodes=eval_episodes,
+                                               seed=seed + 50_000)))
+                eval_history.append((steps_done, score))
+                if score > best_eval:
+                    best_eval = score
+                    best_state = {k: v.detach().clone()
+                                  for k, v in policy_net.state_dict().items()}
+
             if done:
                 break
 
@@ -333,6 +360,14 @@ def train(
     if best_state_dict is not None:
         policy_net.load_state_dict(best_state_dict)
 
+    # Restore the best checkpoint before the final measurement, so the reported
+    # score is the best policy the run actually found rather than wherever the
+    # oscillation happened to leave it.
+    if best_state is not None:
+        policy_net.load_state_dict(best_state)
+        print(f"[{name}] restored best checkpoint (greedy {best_eval:.1f} "
+              f"on {eval_episodes} eps, from {len(eval_history)} evaluations)")
+
     # Training reward is measured *with* exploration noise still on. Evaluate the
     # greedy policy separately so a good policy masked by epsilon is visible.
     greedy = evaluate(policy_net, episodes=solve_window, seed=seed + 10_000)
@@ -360,6 +395,8 @@ def train(
         "solved": greedy_mean >= solve_reward,
         "greedy_eval_rewards": greedy,
         "greedy_eval_mean": greedy_mean,
+        "eval_history": eval_history,
+        "best_eval_during_training": best_eval if best_state is not None else None,
         "best_checkpoint_greedy_mean": best_greedy_mean,
         "best_mean_100": max(
             sum(episode_rewards[i:i + solve_window]) / solve_window
