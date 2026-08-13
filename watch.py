@@ -21,6 +21,27 @@ import torch
 
 from cartpole_dqn import ClassicalQNetwork, normalize_obs
 
+
+def load_policy_net(checkpoint_path):
+    """Rebuild whichever network type the checkpoint was trained with.
+
+    Nothing in the .pt file records agent/architecture, so both branches infer
+    shape from the state_dict itself -- same trick the classical branch always
+    used for hidden-layer widths, extended to the quantum net's (n_layers,
+    n_qubits) via its input_scale parameter.
+    """
+    sd = torch.load(checkpoint_path, map_location="cpu")
+    if "theta" in sd:  # VQCQNetwork, torch statevector backend
+        from vqc import VQCQNetwork
+        n_layers, n_qubits = sd["input_scale"].shape
+        net = VQCQNetwork(n_qubits=n_qubits, n_layers=n_layers, backend="torch")
+    else:  # ClassicalQNetwork
+        widths = [sd[k].shape[0] for k in sd if k.endswith("weight")]
+        net = ClassicalQNetwork(hidden=tuple(widths[:-1]))
+    net.load_state_dict(sd)
+    net.eval()
+    return net
+
 X_LIMIT = 2.4          # cart falls off the track past this
 THETA_LIMIT = 0.2095   # 12 degrees, pole considered fallen
 POLE_LEN = 1.0         # world units; gymnasium uses half-length 0.5
@@ -88,13 +109,7 @@ if __name__ == "__main__":
     p.add_argument("--stride", type=int, default=2, help="keep every Nth frame")
     args = p.parse_args()
 
-    # Infer the hidden layer widths from the checkpoint so older runs (which used
-    # a narrower net) still load after the default architecture changed.
-    sd = torch.load(args.checkpoint)
-    widths = [sd[k].shape[0] for k in sd if k.endswith("weight")]
-    net = ClassicalQNetwork(hidden=tuple(widths[:-1]))
-    net.load_state_dict(sd)
-    net.eval()
+    net = load_policy_net(args.checkpoint)
 
     states = rollout(net, seed=args.seed)
     steps = len(states) - 1

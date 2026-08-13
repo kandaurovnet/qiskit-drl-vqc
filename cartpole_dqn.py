@@ -209,7 +209,7 @@ def train(
     solve_window: int = 100,
     out_dir: str = "results",
     seed: int = 0,
-    double_dqn: bool = False,
+    double_dqn: bool = True,
     tag: str = "",
 ):
     name = f"{agent}{tag}"
@@ -242,6 +242,14 @@ def train(
     episode_losses = []
     steps_done = 0
     tic = time.time()
+
+    # Track the best checkpoint by periodic greedy eval, mirroring the
+    # EvalCallback(best_model_save_path=...) pattern the SB3-based scripts use.
+    # Vanilla-ish DQN oscillates (see double_dqn's docstring above) -- reaches
+    # near-500, then collapses, repeatedly -- so a single end-of-training
+    # snapshot can easily land mid-collapse instead of at the best policy seen.
+    best_greedy_mean = -1.0
+    best_state_dict = None
 
     for ep in range(episodes):
         obs, _info = env.reset()
@@ -301,6 +309,11 @@ def train(
             print(f"[{name}] episode {ep:4d}  reward {ep_reward:6.1f}  "
                   f"avg({len(recent)}) {avg:6.1f}  loss {episode_losses[-1]:7.4f}  eps {eps:.3f}")
 
+            greedy_check_mean = float(np.mean(evaluate(policy_net, episodes=5, seed=seed + 90_000 + ep)))
+            if greedy_check_mean > best_greedy_mean:
+                best_greedy_mean = greedy_check_mean
+                best_state_dict = {k: v.detach().clone() for k, v in policy_net.state_dict().items()}
+
         if len(episode_rewards) >= solve_window:
             avg = sum(episode_rewards[-solve_window:]) / solve_window
             if avg >= solve_reward:
@@ -314,6 +327,11 @@ def train(
 
     elapsed = time.time() - tic
     env.close()
+
+    # Restore the best checkpoint seen during training instead of trusting
+    # whatever the final episode happened to leave behind.
+    if best_state_dict is not None:
+        policy_net.load_state_dict(best_state_dict)
 
     # Training reward is measured *with* exploration noise still on. Evaluate the
     # greedy policy separately so a good policy masked by epsilon is visible.
@@ -342,6 +360,7 @@ def train(
         "solved": greedy_mean >= solve_reward,
         "greedy_eval_rewards": greedy,
         "greedy_eval_mean": greedy_mean,
+        "best_checkpoint_greedy_mean": best_greedy_mean,
         "best_mean_100": max(
             sum(episode_rewards[i:i + solve_window]) / solve_window
             for i in range(max(1, len(episode_rewards) - solve_window + 1))
@@ -392,7 +411,7 @@ if __name__ == "__main__":
     parser.add_argument("--train-freq", type=int, default=256)
     parser.add_argument("--gradient-steps", type=int, default=128)
     parser.add_argument("--target-update-every-steps", type=int, default=10)
-    parser.add_argument("--double-dqn", action="store_true")
+    parser.add_argument("--double-dqn", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--tag", type=str, default="",
                         help="suffix for output filenames, e.g. --tag _ddqn")
     args = parser.parse_args()

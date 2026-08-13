@@ -152,7 +152,7 @@ def main():
     p.add_argument("--n-layers", type=int, default=3)
     p.add_argument("--quantum-backend", default="torch",
                    help="'torch' (fast, default) or 'qiskit' (exact, ~1900x slower)")
-    p.add_argument("--double-dqn", action="store_true")
+    p.add_argument("--double-dqn", action=argparse.BooleanOptionalAction, default=True)
     p.add_argument("--out-dir", default="results")
     p.add_argument("--smoke", action="store_true",
                    help="Short run to verify wiring end to end.")
