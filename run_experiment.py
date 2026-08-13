@@ -47,6 +47,7 @@ ARMS = {
     "classical":       ("classical", {"hidden": (32, 32)}),
     "classical-small": ("classical", {"hidden": (6,)}),
     "quantum":         ("quantum",   {}),
+    "quantum-noisy":   ("quantum",   {"backend": "torch-noisy"}),
 }
 
 
@@ -57,7 +58,10 @@ def run_one(arm, seed, args):
 
     if agent == "quantum":
         cartpole_dqn.QUANTUM_KWARGS = {
-            "n_layers": args.n_layers, "backend": args.quantum_backend, "seed": seed}
+            "n_layers": args.n_layers, "backend": args.quantum_backend,
+            "seed": seed, **kwargs}
+        if kwargs.get("backend") == "torch-noisy":
+            cartpole_dqn.QUANTUM_KWARGS["shots"] = args.noisy_shots
     else:
         cartpole_dqn.CLASSICAL_KWARGS = dict(kwargs)
 
@@ -118,7 +122,7 @@ def plot_curves(results, out_dir, window=50):
     """Median training curve per arm, with the inter-seed spread shaded."""
     fig, (ax_t, ax_e) = plt.subplots(1, 2, figsize=(13, 5), dpi=150)
     colors = {"classical": "tab:blue", "classical-small": "tab:cyan",
-              "quantum": "tab:purple"}
+              "quantum": "tab:purple", "quantum-noisy": "tab:red"}
 
     for arm, runs in results.items():
         col = colors.get(arm)
@@ -198,6 +202,8 @@ def main():
     p.add_argument("--eval-every-steps", type=int, default=5000)
     p.add_argument("--eval-episodes", type=int, default=5)
     p.add_argument("--quantum-backend", default="torch")
+    p.add_argument("--noisy-shots", type=int, default=1024,
+                   help="Finite-sampling noise for the quantum-noisy arm.")
     p.add_argument("--out-dir", default="results/benchmark")
     p.add_argument("--smoke", action="store_true")
     args = p.parse_args()

@@ -65,6 +65,7 @@ from qiskit_machine_learning.neural_networks import EstimatorQNN
 from qiskit_machine_learning.connectors import TorchConnector
 
 import torch_statevector
+import torch_density
 
 # ---------------------------------------------------------------------------
 # Hyperparameters
@@ -152,6 +153,7 @@ class VQCQNetwork(nn.Module):
         backend="torch",
         shots: int | None = None,
         optimization_level: int = 1,
+        noise_backend=None,
     ):
         """
         Args:
@@ -187,6 +189,36 @@ class VQCQNetwork(nn.Module):
         self.output_scale = nn.Parameter(torch.ones(N_ACTIONS))
         self.backend = backend
         self.circuit = qc
+
+        if backend == "torch-noisy":
+            # Same circuit, but transpiled for a real device and executed as a
+            # density matrix with that device's own Aer noise channels. Noise
+            # must be applied to the *transpiled* circuit (native gates, SWAPs
+            # for missing connectivity): on FakeManilaV2 the ansatz goes from
+            # depth 24 to 185, and CX error is ~50x single-qubit error, so most
+            # of the damage comes from routing rather than the logical circuit.
+            from qiskit_aer.noise import NoiseModel
+            if noise_backend is None:
+                from qiskit_ibm_runtime.fake_provider import FakeManilaV2
+                noise_backend = FakeManilaV2()
+            pm = generate_preset_pass_manager(
+                optimization_level=optimization_level, backend=noise_backend,
+                seed_transpiler=seed)
+            qc = pm.run(qc)
+            observables = [obs.apply_layout(qc.layout) for obs in observables]
+            nm = NoiseModel.from_backend(noise_backend)
+            self.circuit = qc
+            self.n_physical = qc.num_qubits
+            self.shots = shots if shots is not None else 1024
+            self._ops = torch_density.compile_noisy_circuit(
+                qc, theta_params, x_params, noise_model=nm)
+            self.register_buffer(
+                "_obs", torch_statevector.compile_observables(observables, self.n_physical))
+            ro = torch_density.readout_matrix(nm, self.n_physical)
+            self.register_buffer("_readout", ro if ro is not None else torch.empty(0))
+            self.theta = nn.Parameter(torch.tensor(init_theta, dtype=torch.float32))
+            self.qlayer = None
+            return
 
         if backend == "torch":
             # Compiled from the Qiskit circuit above, so the ansatz has exactly
@@ -248,7 +280,18 @@ class VQCQNetwork(nn.Module):
         angles = self.input_scale.unsqueeze(0) * state.unsqueeze(1)  # (B, L, n_qubits)
         angles = angles.reshape(state.shape[0], -1)          # (B, L * n_qubits)
 
-        if self.backend == "torch":
+        if self.backend == "torch-noisy":
+            expectations = torch_density.run_noisy(
+                self._ops, self._obs, self.theta, angles, self.n_physical,
+                readout=self._readout if self._readout.numel() else None)
+            if self.shots:
+                # Finite sampling. For an observable with eigenvalues +/-1 the
+                # standard error is sqrt((1 - <O>^2) / shots). The magnitude is
+                # detached so autograd sees the noise as additive, not as a
+                # gradient path through its own variance.
+                var = (1 - expectations.detach() ** 2).clamp(min=0) / self.shots
+                expectations = expectations + torch.randn_like(expectations) * var.sqrt()
+        elif self.backend == "torch":
             expectations = torch_statevector.run(
                 self._ops, self._obs, self.theta, angles, self.n_qubits)
         else:
@@ -257,7 +300,8 @@ class VQCQNetwork(nn.Module):
 
     def parameter_groups(self, lr_theta=1e-3, lr_input=1e-3, lr_output=1e-1):
         """Optimizer parameter groups with per-group learning rates."""
-        circuit_params = [self.theta] if self.backend == "torch" else list(self.qlayer.parameters())
+        circuit_params = ([self.theta] if self.backend in ("torch", "torch-noisy")
+                          else list(self.qlayer.parameters()))
         return [
             {"params": circuit_params, "lr": lr_theta},
             {"params": [self.input_scale], "lr": lr_input},
