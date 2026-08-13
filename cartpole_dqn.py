@@ -105,14 +105,25 @@ QUANTUM_KWARGS: dict = {}
 CLASSICAL_KWARGS: dict = {}
 
 
-def build_q_network(agent: str) -> nn.Module:
-    """Factory returning a network that satisfies the interface above."""
+def build_q_network(agent: str, seed: int | None = None) -> nn.Module:
+    """Factory returning a network that satisfies the interface above.
+
+    ``seed`` is a fallback for VQCQNetwork's circuit-parameter init, used only
+    when QUANTUM_KWARGS doesn't already specify one. VQCQNetwork draws its
+    initial theta from its own `np.random.default_rng(seed)`, not from the
+    global `np.random.seed()` train() already sets -- so without this, two
+    runs with the same `--seed` still start from different, OS-entropy-drawn
+    circuit weights and can converge to different local optima. run_experiment
+    .py always sets QUANTUM_KWARGS["seed"] itself; the CLI entry point below
+    does not, which is exactly the gap this closes.
+    """
     if agent == "classical":
         return ClassicalQNetwork(**CLASSICAL_KWARGS)
     elif agent == "quantum":
         # Imported lazily so the classical baseline does not require qiskit.
         from vqc import VQCQNetwork
-        return VQCQNetwork(**QUANTUM_KWARGS)
+        kwargs = {"seed": seed, **QUANTUM_KWARGS}
+        return VQCQNetwork(**kwargs)
     else:
         raise ValueError(f"Unknown agent type: {agent}")
 
@@ -237,8 +248,8 @@ def train(
     env.action_space.seed(seed)
     n_actions = env.action_space.n
 
-    policy_net = build_q_network(agent).to(DEVICE)
-    target_net = build_q_network(agent).to(DEVICE)
+    policy_net = build_q_network(agent, seed=seed).to(DEVICE)
+    target_net = build_q_network(agent, seed=seed).to(DEVICE)
     target_net.load_state_dict(policy_net.state_dict())
     target_net.eval()
 
