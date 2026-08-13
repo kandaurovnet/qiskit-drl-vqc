@@ -267,7 +267,12 @@ def train(
     # VQC like ours). Each stored transition sums n rewards and bootstraps from
     # the state n steps ahead with gamma**n, shortening the chain of bootstrapped
     # estimates a value error must cross. 1 = classic single-step targets.
-    n_step: int = 1,
+    # 3 is the default because it is what training actually leaves behind: the
+    # post-peak eval drop falls 328 -> 110 and the final policy scores 374 vs
+    # 166. With dense eval the *kept* checkpoint is a shade lower (491.7 vs
+    # 498.3), so pass --n-step 1 when only the best checkpoint matters. n=5 is
+    # worse than both -- more off-policy actions baked into each target.
+    n_step: int = 3,
     train_freq: int = 256,
     gradient_steps: int = 128,
     learning_starts: int = 1000,
@@ -276,8 +281,13 @@ def train(
     # finished at greedy 111.4. Evaluating periodically and keeping the best
     # weights recovers that policy instead of discarding it -- the same thing
     # SB3's EvalCallback(best_model_save_path=...) does in stable_dqn.py.
-    eval_every_steps: int = 5000,
-    eval_episodes: int = 5,
+    # Sampled densely on purpose. The policy can swing 500 -> 12 inside one 5k
+    # window, so at 5000/5 the best-checkpoint restore simply misses peaks:
+    # 2500/10 tightens the kept policy to 498.3 +- 2.4 from 491.5 +- 11.2 while
+    # leaving training dynamics untouched. Costs eval compute, which is cheap on
+    # a simulator; on hardware, where shots are the budget, raise these.
+    eval_every_steps: int = 2500,
+    eval_episodes: int = 10,
     replay_capacity: int = 100_000,
     lr: float = 2.3e-3,
     # Only used by networks exposing parameter_groups() (the quantum net).
@@ -458,6 +468,9 @@ def train(
             break
 
     elapsed = time.time() - tic
+    print(f"[{name}] finished {len(episode_rewards)} episodes, "
+          f"{steps_done} steps in {elapsed:.1f}s "
+          f"({steps_done / elapsed:.1f} steps/s)")
     env.close()
 
     # Restore the best checkpoint before the final measurement, so the reported
@@ -552,11 +565,12 @@ if __name__ == "__main__":
     parser.add_argument("--train-freq", type=int, default=256)
     parser.add_argument("--gradient-steps", type=int, default=128)
     parser.add_argument("--batch-size", type=int, default=64)
-    parser.add_argument("--eval-every-steps", type=int, default=5000)
-    parser.add_argument("--eval-episodes", type=int, default=5)
+    parser.add_argument("--eval-every-steps", type=int, default=2500)
+    parser.add_argument("--eval-episodes", type=int, default=10)
     parser.add_argument("--target-update-every-steps", type=int, default=10)
-    parser.add_argument("--n-step", type=int, default=1,
-                        help="n-step return window (1 = classic DQN targets)")
+    parser.add_argument("--n-step", type=int, default=3,
+                        help="n-step return window; 1 = classic DQN targets, best "
+                             "when only the saved checkpoint matters")
     parser.add_argument("--tau", type=float, default=1.0,
                         help="target sync: 1.0 = hard copy, <1 = Polyak blend")
     parser.add_argument("--double-dqn", action=argparse.BooleanOptionalAction, default=True)
