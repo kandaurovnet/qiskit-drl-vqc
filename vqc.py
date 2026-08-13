@@ -223,7 +223,8 @@ class VQCQNetwork(nn.Module):
         if backend == "torch":
             # Compiled from the Qiskit circuit above, so the ansatz has exactly
             # one definition regardless of which backend runs it.
-            self._ops = torch_statevector.compile_circuit(qc, theta_params, x_params)
+            self._ops = torch_statevector.optimize_ops(
+                torch_statevector.compile_circuit(qc, theta_params, x_params), n_qubits)
             self.register_buffer(
                 "_obs", torch_statevector.compile_observables(observables, n_qubits))
             self.theta = nn.Parameter(torch.tensor(init_theta, dtype=torch.float32))

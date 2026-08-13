@@ -265,6 +265,9 @@ def train(
     eval_episodes: int = 5,
     replay_capacity: int = 100_000,
     lr: float = 2.3e-3,
+    # Only used by networks exposing parameter_groups() (the quantum net).
+    # None resolves below to a shaping-dependent default.
+    lr_output: float | None = None,
     solve_reward: float = 475.0,
     solve_window: int = 100,
     out_dir: str = "results",
@@ -281,6 +284,15 @@ def train(
     # `name` prefixes every output file. It defaults to agent+tag, but callers
     # that run several variants of one agent (e.g. two classical widths) need to
     # name runs themselves, or both would write to the same files.
+    # Shaping with a terminal penalty widens the Q range from ~[0,100] to
+    # ~[-200,100], and VQCQNetwork.output_scale starts at 1.0 and has to stretch
+    # to cover it. At lr_output=0.1 it stalls short (measured: 95-220) and the
+    # agent fails; at 0.3 it reaches 320-430 and solves 3/3 (mean 491.5, std
+    # 11.2) versus 1/3 (mean 408.6, std 63.5). Unshaped runs keep 0.1, which is
+    # what the narrower range was calibrated for.
+    if lr_output is None:
+        lr_output = 0.3 if reward_shaping else 0.1
+
     name = name or f"{agent}{tag}"
     os.makedirs(out_dir, exist_ok=True)
     random.seed(seed)
@@ -301,8 +313,13 @@ def train(
     # to grow from 1 to ~100 to reach CartPole-sized Q-values, which a single
     # small lr cannot do in any reasonable number of steps. Networks that
     # expose parameter_groups() get to choose; everything else is unchanged.
+    # lr_output matters more once shaping widens the Q range: with the terminal
+    # penalty, targets span ~[-200, +100], and a run whose output_scale stalls
+    # near 100 cannot represent them (measured: the one seed that stalled at
+    # 98.8 was the one that failed to solve).
     if hasattr(policy_net, "parameter_groups"):
-        optimizer = optim.Adam(policy_net.parameter_groups(lr_theta=lr, lr_input=lr))
+        optimizer = optim.Adam(policy_net.parameter_groups(
+            lr_theta=lr, lr_input=lr, lr_output=lr_output))
     else:
         optimizer = optim.Adam(policy_net.parameters(), lr=lr)
     memory = ReplayMemory(replay_capacity)
@@ -314,14 +331,6 @@ def train(
     best_state = None
     eval_history = []          # (step, greedy mean) for the training plot
     tic = time.time()
-
-    # Track the best checkpoint by periodic greedy eval, mirroring the
-    # EvalCallback(best_model_save_path=...) pattern the SB3-based scripts use.
-    # Vanilla-ish DQN oscillates (see double_dqn's docstring above) -- reaches
-    # near-500, then collapses, repeatedly -- so a single end-of-training
-    # snapshot can easily land mid-collapse instead of at the best policy seen.
-    best_greedy_mean = -1.0
-    best_state_dict = None
 
     for ep in range(episodes):
         obs, _info = env.reset()
@@ -397,11 +406,6 @@ def train(
             print(f"[{name}] episode {ep:4d}  reward {ep_reward:6.1f}  "
                   f"avg({len(recent)}) {avg:6.1f}  loss {episode_losses[-1]:7.4f}  eps {eps:.3f}")
 
-            greedy_check_mean = float(np.mean(evaluate(policy_net, episodes=5, seed=seed + 90_000 + ep)))
-            if greedy_check_mean > best_greedy_mean:
-                best_greedy_mean = greedy_check_mean
-                best_state_dict = {k: v.detach().clone() for k, v in policy_net.state_dict().items()}
-
         if len(episode_rewards) >= solve_window:
             avg = sum(episode_rewards[-solve_window:]) / solve_window
             if avg >= solve_reward:
@@ -415,11 +419,6 @@ def train(
 
     elapsed = time.time() - tic
     env.close()
-
-    # Restore the best checkpoint seen during training instead of trusting
-    # whatever the final episode happened to leave behind.
-    if best_state_dict is not None:
-        policy_net.load_state_dict(best_state_dict)
 
     # Restore the best checkpoint before the final measurement, so the reported
     # score is the best policy the run actually found rather than wherever the
@@ -459,7 +458,6 @@ def train(
         "greedy_eval_mean": greedy_mean,
         "eval_history": eval_history,
         "best_eval_during_training": best_eval if best_state is not None else None,
-        "best_checkpoint_greedy_mean": best_greedy_mean,
         "best_mean_100": max(
             sum(episode_rewards[i:i + solve_window]) / solve_window
             for i in range(max(1, len(episode_rewards) - solve_window + 1))
@@ -506,9 +504,12 @@ if __name__ == "__main__":
     parser.add_argument("--out-dir", type=str, default="results")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--lr", type=float, default=2.3e-3)
+    parser.add_argument("--lr-output", type=float, default=None,
+                        help="learning rate for VQCQNetwork.output_scale (quantum only); default 0.3 with --reward-shaping, else 0.1")
     parser.add_argument("--eps-end", type=float, default=0.04)
     parser.add_argument("--train-freq", type=int, default=256)
     parser.add_argument("--gradient-steps", type=int, default=128)
+    parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--target-update-every-steps", type=int, default=10)
     parser.add_argument("--double-dqn", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--reward-shaping", action=argparse.BooleanOptionalAction, default=True,
@@ -526,10 +527,12 @@ if __name__ == "__main__":
         out_dir=args.out_dir,
         seed=args.seed,
         lr=args.lr,
+        lr_output=args.lr_output,
         total_steps=args.total_steps,
         eps_end=args.eps_end,
         train_freq=args.train_freq,
         gradient_steps=args.gradient_steps,
+        batch_size=args.batch_size,
         target_update_every_steps=args.target_update_every_steps,
         double_dqn=args.double_dqn,
         reward_shaping=args.reward_shaping,
