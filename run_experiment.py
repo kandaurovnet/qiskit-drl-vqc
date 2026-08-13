@@ -45,9 +45,9 @@ from cartpole_dqn import train
 # arm name -> (agent kind, network construction kwargs)
 ARMS = {
     "classical":       ("classical", {"hidden": (32, 32)}),
-    "classical-small": ("classical", {"hidden": (6,)}),
+    "classical-small": ("classical", {"hidden": (10,)}),
     "quantum":         ("quantum",   {}),
-    "quantum-noisy":   ("quantum",   {"backend": "torch-noisy"}),
+    # "quantum-noisy":   ("quantum",   {"backend": "torch-noisy"}),
 }
 
 
@@ -195,10 +195,10 @@ def main():
                    help="One seed by default. Pass several (e.g. --seeds 0 1 2 3 4) "
                         "to get medians and the inter-seed spread.")
     p.add_argument("--episodes", type=int, default=4000)
-    p.add_argument("--total-steps", type=int, default=100_000)
+    p.add_argument("--total-steps", type=int, default=30_000)
     p.add_argument("--lr-classical", type=float, default=2.3e-3)
     p.add_argument("--lr-quantum", type=float, default=1e-3)
-    p.add_argument("--n-layers", type=int, default=3)
+    p.add_argument("--n-layers", type=int, default=5)
     p.add_argument("--eval-every-steps", type=int, default=5000)
     p.add_argument("--eval-episodes", type=int, default=5)
     p.add_argument("--quantum-backend", default="torch")

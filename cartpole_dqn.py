@@ -44,7 +44,10 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # `terminated` is the true MDP terminal flag (pole fell / cart left track) -- NOT
 # gymnasium's `truncated` time-limit flag. Only `terminated` may cut bootstrapping.
-Transition = namedtuple("Transition", ("state", "action", "next_state", "reward", "terminated"))
+# `discount` is the bootstrap multiplier for next_state: gamma**k where k is the
+# length of the (possibly n-step) reward window this transition summarizes.
+Transition = namedtuple(
+    "Transition", ("state", "action", "next_state", "reward", "terminated", "discount"))
 
 
 class ReplayMemory:
@@ -178,7 +181,7 @@ def select_action(state: torch.Tensor, policy_net: nn.Module, eps: float, n_acti
         return int(policy_net(state.unsqueeze(0)).argmax(dim=1).item())
 
 
-def optimize_step(policy_net, target_net, optimizer, memory, batch_size, gamma,
+def optimize_step(policy_net, target_net, optimizer, memory, batch_size,
                   double_dqn: bool = False):
     if len(memory) < batch_size:
         return None
@@ -188,6 +191,7 @@ def optimize_step(policy_net, target_net, optimizer, memory, batch_size, gamma,
     action_batch = torch.tensor(batch.action, dtype=torch.long, device=DEVICE).unsqueeze(1)
     reward_batch = torch.tensor(batch.reward, dtype=torch.float32, device=DEVICE)
     terminated_batch = torch.tensor(batch.terminated, dtype=torch.float32, device=DEVICE)
+    discount_batch = torch.tensor(batch.discount, dtype=torch.float32, device=DEVICE)
 
     non_final_mask = ~terminated_batch.bool()
     non_final_next_states = torch.stack(
@@ -210,7 +214,7 @@ def optimize_step(policy_net, target_net, optimizer, memory, batch_size, gamma,
             else:
                 next_q_values[non_final_mask] = target_net(non_final_next_states).max(1).values
 
-    expected_q_values = reward_batch + gamma * next_q_values
+    expected_q_values = reward_batch + discount_batch * next_q_values
 
     loss = F.smooth_l1_loss(q_values, expected_q_values)
     optimizer.zero_grad()
@@ -253,6 +257,17 @@ def train(
     eps_end: float = 0.04,
     exploration_fraction: float = 0.16,
     target_update_every_steps: int = 10,
+    # Polyak coefficient for the target sync. 1.0 is a hard copy (the default,
+    # matching the RL-Zoo config). Smaller values blend the target toward the
+    # policy instead: target <- tau*policy + (1-tau)*target. The burst schedule
+    # makes this matter -- the target is frozen for a whole gradient_steps burst
+    # and then jumps, so the policy can drift far between syncs.
+    tau: float = 1.0,
+    # Rainbow-style n-step returns (arXiv:2512.05946 uses them on a ring-topology
+    # VQC like ours). Each stored transition sums n rewards and bootstraps from
+    # the state n steps ahead with gamma**n, shortening the chain of bootstrapped
+    # estimates a value error must cross. 1 = classic single-step targets.
+    n_step: int = 1,
     train_freq: int = 256,
     gradient_steps: int = 128,
     learning_starts: int = 1000,
@@ -332,8 +347,17 @@ def train(
     eval_history = []          # (step, greedy mean) for the training plot
     tic = time.time()
 
+    def push_window(buf, k):
+        """Store one n-step transition summarizing the first k entries of buf."""
+        k = min(k, len(buf))
+        s0, a0 = buf[0][0], buf[0][1]
+        reward_n = sum(gamma ** i * buf[i][2] for i in range(k))
+        next_n, term_n = buf[k - 1][3], buf[k - 1][4]
+        memory.push(s0, a0, next_n, reward_n, term_n, gamma ** k)
+
     for ep in range(episodes):
         obs, _info = env.reset()
+        nstep_buf = deque()
         state = torch.tensor(normalize_obs(obs), device=DEVICE)
         ep_reward = 0.0
         ep_loss_sum = 0.0
@@ -362,7 +386,10 @@ def train(
             # balanced, so its value must keep bootstrapping. Storing `done` here
             # teaches the net that a perfectly balanced pole is worthless, and
             # the damage grows the more often the agent succeeds.
-            memory.push(state, action, next_state, train_reward, terminated)
+            nstep_buf.append((state, action, train_reward, next_state, terminated))
+            if len(nstep_buf) >= n_step:
+                push_window(nstep_buf, n_step)
+                nstep_buf.popleft()
             state = next_state
             steps_done += 1
 
@@ -373,7 +400,7 @@ def train(
             if steps_done >= learning_starts and steps_done % train_freq == 0:
                 for _ in range(gradient_steps):
                     loss = optimize_step(policy_net, target_net, optimizer, memory,
-                                         batch_size, gamma, double_dqn)
+                                         batch_size, double_dqn)
                     if loss is not None:
                         ep_loss_sum += loss
                         ep_loss_count += 1
@@ -382,7 +409,13 @@ def train(
             # policy quality, so an episode-based interval silently stretches
             # target staleness exactly when Q-values are largest.
             if steps_done % target_update_every_steps == 0:
-                target_net.load_state_dict(policy_net.state_dict())
+                if tau >= 1.0:
+                    target_net.load_state_dict(policy_net.state_dict())
+                else:
+                    with torch.no_grad():
+                        for tp, pp in zip(target_net.parameters(),
+                                          policy_net.parameters()):
+                            tp.mul_(1.0 - tau).add_(pp, alpha=tau)
 
             # Snapshot the best greedy policy seen, not merely the last one.
             if steps_done >= learning_starts and steps_done % eval_every_steps == 0:
@@ -396,6 +429,13 @@ def train(
 
             if done:
                 break
+
+        # Tail windows at episode end: each remaining head still becomes a
+        # transition, over however many steps it actually saw (gamma**k stored
+        # per transition, so shorter windows bootstrap correctly).
+        while nstep_buf:
+            push_window(nstep_buf, n_step)
+            nstep_buf.popleft()
 
         episode_rewards.append(ep_reward)
         episode_losses.append(ep_loss_sum / ep_loss_count if ep_loss_count else 0.0)
@@ -448,6 +488,8 @@ def train(
         "params": sum(p.numel() for p in policy_net.parameters()),
         "seed": seed,
         "double_dqn": double_dqn,
+        "tau": tau,
+        "n_step": n_step,
         "reward_shaping": reward_shaping,
         "eps_end": eps_end,
         # Solved is judged on the GREEDY policy, as SB3/RL-Zoo do. Training reward
@@ -500,7 +542,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--agent", choices=["classical", "quantum"], default="classical")
     parser.add_argument("--episodes", type=int, default=2000)
-    parser.add_argument("--total-steps", type=int, default=80_000)
+    parser.add_argument("--total-steps", type=int, default=50_000)
     parser.add_argument("--out-dir", type=str, default="results")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--lr", type=float, default=2.3e-3)
@@ -510,7 +552,13 @@ if __name__ == "__main__":
     parser.add_argument("--train-freq", type=int, default=256)
     parser.add_argument("--gradient-steps", type=int, default=128)
     parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument("--eval-every-steps", type=int, default=5000)
+    parser.add_argument("--eval-episodes", type=int, default=5)
     parser.add_argument("--target-update-every-steps", type=int, default=10)
+    parser.add_argument("--n-step", type=int, default=1,
+                        help="n-step return window (1 = classic DQN targets)")
+    parser.add_argument("--tau", type=float, default=1.0,
+                        help="target sync: 1.0 = hard copy, <1 = Polyak blend")
     parser.add_argument("--double-dqn", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--reward-shaping", action=argparse.BooleanOptionalAction, default=True,
                         help="penalize cart/pole deviation from center, on top of the "
@@ -533,7 +581,11 @@ if __name__ == "__main__":
         train_freq=args.train_freq,
         gradient_steps=args.gradient_steps,
         batch_size=args.batch_size,
+        eval_every_steps=args.eval_every_steps,
+        eval_episodes=args.eval_episodes,
         target_update_every_steps=args.target_update_every_steps,
+        tau=args.tau,
+        n_step=args.n_step,
         double_dqn=args.double_dqn,
         reward_shaping=args.reward_shaping,
         tag=args.tag,
