@@ -79,6 +79,23 @@ def normalize_obs(obs: np.ndarray) -> np.ndarray:
     return (clipped / OBS_HIGH).astype(np.float32)
 
 
+def shape_reward(norm_obs: np.ndarray, base_reward: float) -> float:
+    """Dense shaping: reward being centered and upright, not merely alive.
+
+    CartPole-v1's native reward is +1 every step no matter how close to
+    failure the state is, so an agent teetering at the track edge gets the
+    same signal as one sitting dead-center -- nothing pushes it toward the
+    safer states it's easier to keep balancing from. Penalizing cart-position
+    and pole-angle deviation (already normalized to roughly [-1, 1] by
+    normalize_obs) adds that gradient while staying in the same [0, 1] range
+    as the unshaped reward, so it doesn't fight the networks' output scaling
+    (calibrated for Q-values ~= 1/(1-gamma) under the base +1/step reward,
+    most load-bearing for VQCQNetwork.output_scale -- see vqc.py).
+    """
+    x, _x_dot, theta, _theta_dot = norm_obs
+    return base_reward - 0.2 * abs(float(x)) - 5 * abs(float(theta))
+
+
 # ---------------------------------------------------------------------------
 # Classical Q-network (baseline / reference implementation of the interface)
 # ---------------------------------------------------------------------------
@@ -231,6 +248,11 @@ def train(
     out_dir: str = "results",
     seed: int = 0,
     double_dqn: bool = True,
+    # Helps the classical net a lot (206 vs 581 episodes to solve, same
+    # quality); a multi-seed ablation showed it's a wash-to-slight-negative for
+    # the quantum agent (mean 452.9 vs 472.7, more seed variance). Pass
+    # reward_shaping=False (CLI: --no-reward-shaping) for quantum runs.
+    reward_shaping: bool = True,
     tag: str = "",
     name: str = "",
 ):
@@ -297,13 +319,19 @@ def train(
             done = terminated or truncated
             ep_reward += reward
 
-            next_state = torch.tensor(normalize_obs(obs), device=DEVICE)
+            norm_next_obs = normalize_obs(obs)
+            next_state = torch.tensor(norm_next_obs, device=DEVICE)
+            # Shaping only changes what the optimizer is told to chase; ep_reward
+            # (logging, solve-window check) always accumulates the true env
+            # reward, so `solve_reward=475` keeps meaning the same thing whether
+            # or not shaping is on.
+            train_reward = shape_reward(norm_next_obs, reward) if reward_shaping else reward
             # Store `terminated`, NOT `done`. gymnasium truncates CartPole at 500
             # steps, but a truncated state is not terminal -- the pole is still
             # balanced, so its value must keep bootstrapping. Storing `done` here
             # teaches the net that a perfectly balanced pole is worthless, and
             # the damage grows the more often the agent succeeds.
-            memory.push(state, action, next_state, reward, terminated)
+            memory.push(state, action, next_state, train_reward, terminated)
             state = next_state
             steps_done += 1
 
@@ -399,6 +427,7 @@ def train(
         "params": sum(p.numel() for p in policy_net.parameters()),
         "seed": seed,
         "double_dqn": double_dqn,
+        "reward_shaping": reward_shaping,
         "eps_end": eps_end,
         # Solved is judged on the GREEDY policy, as SB3/RL-Zoo do. Training reward
         # is collected with exploration still on and, with burst updates, lags the
@@ -451,7 +480,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--agent", choices=["classical", "quantum"], default="classical")
     parser.add_argument("--episodes", type=int, default=2000)
-    parser.add_argument("--total-steps", type=int, default=50_000)
+    parser.add_argument("--total-steps", type=int, default=80_000)
     parser.add_argument("--out-dir", type=str, default="results")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--lr", type=float, default=2.3e-3)
@@ -460,6 +489,11 @@ if __name__ == "__main__":
     parser.add_argument("--gradient-steps", type=int, default=128)
     parser.add_argument("--target-update-every-steps", type=int, default=10)
     parser.add_argument("--double-dqn", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--reward-shaping", action=argparse.BooleanOptionalAction, default=True,
+                        help="penalize cart/pole deviation from center, on top of the "
+                             "native +1/step reward (see shape_reward). Helps the classical "
+                             "agent; use --no-reward-shaping for quantum (see train()'s "
+                             "docstring comment on reward_shaping)")
     parser.add_argument("--tag", type=str, default="",
                         help="suffix for output filenames, e.g. --tag _ddqn")
     args = parser.parse_args()
@@ -476,5 +510,6 @@ if __name__ == "__main__":
         gradient_steps=args.gradient_steps,
         target_update_every_steps=args.target_update_every_steps,
         double_dqn=args.double_dqn,
+        reward_shaping=args.reward_shaping,
         tag=args.tag,
     )
