@@ -34,6 +34,13 @@ network" true, so pass --stop-on-eval only if you want sample-efficiency
 (steps-to-solve) rather than quality-at-a-fixed-budget. The summary prints the
 mean step count per arm either way, so an unmatched comparison is visible.
 
+The ``ibm`` arm is the exception to all of the above: it does not train. It
+loads the already-trained VQC checkpoint and replays one greedy episode on IBM
+hardware, one Runtime job per environment step, capped at --ibm-max-steps. It
+is deployment evidence, not a fourth training result -- one capped episode is
+not comparable to the local arms' full evaluation, so it is opt-in
+(``--arms ibm``) rather than part of the default set.
+
 Runtime note: the quantum arm uses the torch statevector backend (~8 ms per
 gradient step). ``--quantum-backend qiskit`` is ~1900x slower and is only
 practical on a smoke test, to confirm the two agree.
@@ -44,6 +51,7 @@ import json
 import os
 import statistics
 import time
+from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
@@ -59,13 +67,36 @@ ARMS = {
     "classical-small": ("classical", {"hidden": (10,)}),
     "quantum":         ("quantum",   {}),
     "quantum-noisy":   ("quantum",   {"backend": "torch-noisy"}),
+    # Evaluation-only, on real hardware. Excluded from the default arms.
+    "ibm":             ("ibm",       {}),
 }
+
+TRAINING_ARMS = [a for a in ARMS if a != "ibm"]
 
 
 def run_one(arm, seed, args):
     """Train one arm at one seed; returns run_data."""
     agent, kwargs = ARMS[arm]
     print(f"\n{'=' * 72}\n{arm.upper()}  seed={seed}\n{'=' * 72}")
+
+    if agent == "ibm":
+        from run_ibm_cartpole import evaluate_ibm_cartpole
+
+        tic = time.time()
+        run = evaluate_ibm_cartpole(
+            checkpoint_path=Path(args.ibm_checkpoint),
+            output_path=Path(args.ibm_output),
+            backend_name=args.ibm_backend,
+            account_name=args.ibm_account,
+            seed=seed,
+            max_steps=args.ibm_max_steps,
+            target_precision=args.ibm_target_precision,
+            resume=args.ibm_resume,
+        )
+        # evaluate_ibm_cartpole times its own submission loop; overwrite with
+        # the wall clock actually spent here, queue wait included.
+        run.update(arm=arm, seed=seed, wall_sec=time.time() - tic)
+        return run
 
     if agent == "quantum":
         cartpole_dqn.QUANTUM_KWARGS = {
@@ -130,13 +161,17 @@ def print_summary(rows, solve_reward=475.0):
               f"{r['greedy_mean']:>9.1f}{r['greedy_min']:>8.0f}{r['greedy_max']:>8.0f}"
               f"{solved:>9}{r['steps']:>9.0f}{r['wall_sec']:>9.0f}s")
     print("-" * 93)
+    if any(r["arm"] == "ibm" for r in rows):
+        print("Note: the 'ibm' row is one greedy episode capped at --ibm-max-steps, "
+              "not a training result. It does not rank against the other arms.")
 
 
-def plot_curves(results, out_dir, window=50):
+def plot_curves(results, out_dir, filename="benchmark_curves.png", window=50):
     """Median training curve per arm, with the inter-seed spread shaded."""
     fig, (ax_t, ax_e) = plt.subplots(1, 2, figsize=(13, 5), dpi=150)
     colors = {"classical": "tab:blue", "classical-small": "tab:cyan",
-              "quantum": "tab:purple", "quantum-noisy": "tab:red"}
+              "quantum": "tab:purple", "quantum-noisy": "tab:red",
+              "ibm": "tab:green"}
 
     for arm, runs in results.items():
         col = colors.get(arm)
@@ -154,11 +189,15 @@ def plot_curves(results, out_dir, window=50):
             xs = np.arange(window - 1, longest)
         else:
             xs = np.arange(longest)
-        ax_t.plot(xs, med, color=col, label=f"{arm} ({runs[0]['params']} params)")
+        # The IBM arm is a single episode, and a 1-point line draws nothing.
+        style = {"marker": "*", "ms": 14} if len(xs) == 1 else {}
+        ax_t.plot(xs, med, color=col, label=f"{arm} ({runs[0]['params']} params)",
+                  **style)
         ax_t.fill_between(xs, lo, hi, color=col, alpha=0.15)
 
         # Greedy evaluation is the metric 'solved' is actually judged on, and
         # unlike training reward it is not depressed by exploration noise.
+        # The IBM arm has no eval history: it never trains.
         if runs[0].get("eval_history"):
             n = min(len(r["eval_history"]) for r in runs)
             steps = [s for s, _ in runs[0]["eval_history"][:n]]
@@ -176,7 +215,7 @@ def plot_curves(results, out_dir, window=50):
 
     plt.suptitle("CartPole-v1: classical DQN vs DRL+VQC")
     plt.tight_layout()
-    path = os.path.join(out_dir, "benchmark_curves.png")
+    path = os.path.join(out_dir, filename)
     plt.savefig(path)
     plt.close(fig)
     print(f"Saved training plots to {path}")
@@ -190,6 +229,10 @@ def make_gifs(results, out_dir):
         print(f"(skipping GIFs: {exc})")
         return
     for arm, runs in results.items():
+        # The IBM checkpoint is the Torch-trained policy, so a local rollout of
+        # it would be the quantum arm's GIF under a hardware label.
+        if arm == "ibm":
+            continue
         best = max(runs, key=lambda r: r["greedy_eval_mean"])
         if not os.path.exists(best["checkpoint"]):
             print(f"(skipping {arm} GIF: {best['checkpoint']} not found)")
@@ -204,12 +247,17 @@ def make_gifs(results, out_dir):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--arms", nargs="+", default=list(ARMS), choices=list(ARMS))
+    p.add_argument("--arms", nargs="+", default=TRAINING_ARMS, choices=list(ARMS),
+                   help="'ibm' is evaluation-only on real hardware and is "
+                        "opt-in; the default set is the four training arms.")
     p.add_argument("--seeds", nargs="+", type=int, default=[0],
                    help="One seed by default. Pass several (e.g. --seeds 0 1 2 3 4) "
                         "to get medians and the inter-seed spread.")
     p.add_argument("--episodes", type=int, default=4000)
     p.add_argument("--total-steps", type=int, default=100_000)
+    # The classical default is the RL-Zoo tuned value. The quantum network wants
+    # a smaller rate on the circuit angles; its output scaling is separately
+    # driven at 0.1 by VQCQNetwork.parameter_groups().
     p.add_argument("--lr-classical", type=float, default=2.3e-3)
     p.add_argument("--lr-quantum", type=float, default=1e-3)
     p.add_argument("--n-layers", type=int, default=5)
@@ -222,12 +270,29 @@ def main():
                    help="Stop each arm once its greedy policy clears the bar. "
                         "Off by default: it unmatches the step budgets the "
                         "cross-arm comparison rests on.")
-    p.add_argument("--quantum-backend", default="torch")
+    p.add_argument("--quantum-backend", default="torch",
+                   help="'torch' (fast, default) or 'qiskit' (exact, ~1900x slower)")
     p.add_argument("--noisy-shots", type=int, default=1024,
                    help="Finite-sampling noise for the quantum-noisy arm.")
+    p.add_argument("--ibm-backend", default="ibm_marrakesh")
+    p.add_argument("--ibm-account", default="cartpole-vqc")
+    p.add_argument("--ibm-checkpoint", default="results/quantum_policy.pt")
+    p.add_argument("--ibm-output", default=None,
+                   help="Defaults to <out-dir>/ibm_cartpole_run.json. The run "
+                        "refuses to overwrite an existing file; pass a distinct "
+                        "path per hardware run, or --ibm-resume to continue one.")
+    p.add_argument("--ibm-max-steps", type=int, default=10)
+    p.add_argument("--ibm-target-precision", type=float, default=0.1)
+    p.add_argument("--ibm-resume", action="store_true",
+                   help="Resume the saved IBM run without resubmitting its pending step.")
     p.add_argument("--out-dir", default="results/benchmark")
     p.add_argument("--smoke", action="store_true")
     args = p.parse_args()
+
+    if "ibm" in args.arms and len(args.seeds) != 1:
+        p.error("IBM evaluation currently requires exactly one seed per output file.")
+    if args.ibm_output is None:
+        args.ibm_output = os.path.join(args.out_dir, "ibm_cartpole_run.json")
 
     if args.smoke:
         # Step budget must be the binding limit and must clear learning_starts
@@ -241,10 +306,11 @@ def main():
 
     rows = summarize(results)
     print_summary(rows)
-    plot_curves(results, args.out_dir)
+    stem = "benchmark_with_ibm" if "ibm" in args.arms else "benchmark"
+    plot_curves(results, args.out_dir, filename=f"{stem}_curves.png")
     make_gifs(results, args.out_dir)
 
-    path = os.path.join(args.out_dir, "benchmark.json")
+    path = os.path.join(args.out_dir, f"{stem}.json")
     with open(path, "w") as f:
         json.dump({
             "config": vars(args),

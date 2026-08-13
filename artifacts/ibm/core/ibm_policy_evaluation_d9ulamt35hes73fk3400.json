@@ -1,0 +1,147 @@
+{
+  "submitted_at_utc": "2026-08-13T05:25:48.271861+00:00",
+  "status": "completed",
+  "qpu_job_submitted": true,
+  "backend": "ibm_marrakesh",
+  "job_id": "d9ulamt35hes73fk3400",
+  "target_precision": 0.1,
+  "checkpoint": "results/quantum_policy.pt",
+  "checkpoint_sha256": "d25cea8e17336477eea5ff546144c56c9d8b10a4a89f8ccd2d1aba6b2c5032c8",
+  "source_preview": "artifacts/ibm/validation/ibm_policy_preview.json",
+  "source_submission_preview": "artifacts/ibm/validation/ibm_policy_submission_preview.json",
+  "output_scale": [
+    124.92679595947266,
+    -136.2405548095703
+  ],
+  "selected_states": [
+    {
+      "evaluation_seed": 10000,
+      "episode_index": 0,
+      "step": 195,
+      "raw_observation": [
+        1.1574091911315918,
+        -0.543199360370636,
+        -0.17944671213626862,
+        -0.2522023916244507
+      ],
+      "normalized_observation": [
+        0.4822538197040558,
+        -0.18106645345687866,
+        -0.8565475344657898,
+        -0.0840674638748169
+      ],
+      "exact_q_values": [
+        101.7186050415039,
+        89.46971130371094
+      ],
+      "exact_action": 0,
+      "exact_margin": 12.248893737792969,
+      "qiskit_exact_expectations": [
+        0.8142260639464618,
+        -0.6567042574853971
+      ],
+      "qiskit_exact_q_values": [
+        101.71865335552417,
+        89.46975238561741
+      ],
+      "qiskit_exact_action": 0,
+      "torch_qiskit_abs_difference": [
+        4.8314020261841506e-05,
+        4.1081906474005336e-05
+      ]
+    },
+    {
+      "evaluation_seed": 10000,
+      "episode_index": 0,
+      "step": 228,
+      "raw_observation": [
+        0.28131619095802307,
+        -1.8475947380065918,
+        0.004655077122151852,
+        0.4458569586277008
+      ],
+      "normalized_observation": [
+        0.11721507459878922,
+        -0.6158649325370789,
+        0.022219939157366753,
+        0.14861898124217987
+      ],
+      "exact_q_values": [
+        87.3613510131836,
+        101.61669921875
+      ],
+      "exact_action": 1,
+      "exact_margin": 14.255348205566406,
+      "qiskit_exact_expectations": [
+        0.6993008850122671,
+        -0.7458630296099938
+      ],
+      "qiskit_exact_q_values": [
+        87.36141897620614,
+        101.61679296601253
+      ],
+      "qiskit_exact_action": 1,
+      "torch_qiskit_abs_difference": [
+        6.796302254485909e-05,
+        9.374726252531218e-05
+      ]
+    }
+  ],
+  "original_depth": 24,
+  "isa_depth": 93,
+  "two_qubit_gates": 34,
+  "completed_at_utc": "2026-08-13T06:05:37.406890+00:00",
+  "runtime_results": [
+    {
+      "state_index": 0,
+      "evaluation_seed": 10000,
+      "step": 195,
+      "runtime_expectations": [
+        0.7392046200288752,
+        -0.6776328228398563
+      ],
+      "runtime_q_values": [
+        92.3464647386468,
+        92.32107174087729
+      ],
+      "runtime_action": 0,
+      "exact_qiskit_q_values": [
+        101.71865335552417,
+        89.46975238561741
+      ],
+      "exact_action": 0,
+      "action_agreement": true,
+      "absolute_q_value_error": [
+        9.372188616877366,
+        2.851319355259875
+      ]
+    },
+    {
+      "state_index": 1,
+      "evaluation_seed": 10000,
+      "step": 228,
+      "runtime_expectations": [
+        0.6048037800236251,
+        -0.661498708010336
+      ],
+      "runtime_q_values": [
+        75.55619842252919,
+        90.12295098514213
+      ],
+      "runtime_action": 1,
+      "exact_qiskit_q_values": [
+        87.36141897620614,
+        101.61679296601253
+      ],
+      "exact_action": 1,
+      "action_agreement": true,
+      "absolute_q_value_error": [
+        11.805220553676946,
+        11.4938419808704
+      ]
+    }
+  ],
+  "action_agreement_count": 2,
+  "action_agreement_rate": 1.0,
+  "max_absolute_q_value_error": 11.805220553676946
+}

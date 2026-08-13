@@ -1,0 +1,19 @@
+{
+  "status": "preliminary_hardware_evaluation",
+  "source_result": "artifacts/ibm/core/ibm_policy_evaluation_d9ulamt35hes73fk3400.json",
+  "backend": "ibm_marrakesh",
+  "job_id": "d9ulamt35hes73fk3400",
+  "target_precision": 0.1,
+  "states_evaluated": 2,
+  "action_agreement_count": 2,
+  "action_agreement_rate": 1.0,
+  "mean_absolute_q_value_error": 8.880642626671147,
+  "max_absolute_q_value_error": 11.805220553676946,
+  "minimum_hardware_action_margin": 0.02539299776951509,
+  "mean_hardware_action_margin": 7.296072780191224,
+  "mean_exact_action_margin": 13.252137479856572,
+  "isa_depth": 93,
+  "two_qubit_gates": 34,
+  "trainable_parameters": 46,
+  "interpretation": "Both selected actions agreed with exact simulation, but this is a two-state preliminary result. The minimum hardware action margin is small, so broader repeated-state testing is required before claiming hardware robustness."
+}

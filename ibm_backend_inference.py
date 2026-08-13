@@ -1,19 +1,21 @@
 """Prepare the CartPole VQC for an IBM Quantum backend.
 
-This module implements milestone Q8.2 only.  Running it connects to IBM
-Quantum, selects a QPU, transpiles the parameterized VQC to that QPU's ISA,
-maps both observables to the transpiled layout, and reports validation data.
-It does not submit a Runtime job or consume QPU execution time.
+Running it first completes Q8.2 without using QPU time.  It then offers an
+explicit confirmation dialog for the Q8.3 Runtime Estimator smoke test.
 """
 
 from dataclasses import dataclass
-import tkinter as tk
-from tkinter import messagebox, simpledialog
+from datetime import datetime, timezone
+import json
+from pathlib import Path
+from typing import Callable
 
+import numpy as np
 from qiskit.circuit import Parameter
+from qiskit.primitives import StatevectorEstimator
 from qiskit.quantum_info import SparsePauliOp
 from qiskit.transpiler import generate_preset_pass_manager
-from qiskit_ibm_runtime import QiskitRuntimeService
+from qiskit_ibm_runtime import EstimatorV2, QiskitRuntimeService
 
 from vqc import build_observables, build_qnetwork_circuit
 
@@ -22,6 +24,9 @@ ACCOUNT_NAME = "cartpole-vqc"
 DEFAULT_BACKEND = "ibm_marrakesh"
 SEED_TRANSPILER = 42
 OPTIMIZATION_LEVEL = 3
+TARGET_PRECISION = 0.1
+SMOKE_TEST_OBSERVATION = (0.05, -0.10, 0.02, 0.15)
+RESULTS_DIRECTORY = Path(__file__).with_name("artifacts") / "ibm" / "validation"
 
 
 @dataclass(frozen=True)
@@ -36,6 +41,17 @@ class PreparedVQC:
     original_depth: int
     transpiled_depth: int
     two_qubit_gates: int
+
+
+@dataclass(frozen=True)
+class SmokeTestInputs:
+    """One frozen model input expressed in circuit parameter order."""
+
+    observation: tuple[float, ...]
+    parameter_values: tuple[float, ...]
+    output_scale: tuple[float, ...]
+    local_expectations: tuple[float, ...]
+    local_q_values: tuple[float, ...]
 
 
 def _select_backend(service: QiskitRuntimeService, backend_name: str | None):
@@ -148,8 +164,144 @@ def _format_summary(prepared: PreparedVQC) -> str:
     )
 
 
+def build_smoke_test_inputs(
+    prepared: PreparedVQC,
+    observation: tuple[float, ...] = SMOKE_TEST_OBSERVATION,
+    *,
+    seed: int = 42,
+) -> SmokeTestInputs:
+    """Create fixed parameters and verify them with exact local inference."""
+    if len(observation) != 4:
+        raise ValueError("The CartPole observation must contain four values.")
+
+    # Match VQCQNetwork's initialized parameters without constructing its QNN.
+    # The smoke-test input and output scales both initialize to one.
+    encoded = np.arctan(np.asarray(observation, dtype=float))
+    input_angles = np.tile(encoded, 3)
+    theta_values = np.random.default_rng(seed).uniform(
+        -np.pi, np.pi, size=len(prepared.weight_parameters)
+    )
+    output_scale = np.ones(2, dtype=float)
+
+    values_by_parameter = {
+        **dict(zip(prepared.input_parameters, input_angles, strict=True)),
+        **dict(zip(prepared.weight_parameters, theta_values, strict=True)),
+    }
+    parameter_values = tuple(
+        float(values_by_parameter[parameter])
+        for parameter in prepared.circuit.parameters
+    )
+
+    # Simulate the original four logical qubits.  The transpiled IBM circuit
+    # spans every physical backend wire (156 on ibm_marrakesh), which is not a
+    # tractable statevector even though only four physical qubits are active.
+    local_circuit, local_inputs, local_weights = build_qnetwork_circuit()
+    local_values_by_parameter = {
+        **dict(zip(local_inputs, input_angles, strict=True)),
+        **dict(zip(local_weights, theta_values, strict=True)),
+    }
+    local_parameter_values = tuple(
+        float(local_values_by_parameter[parameter])
+        for parameter in local_circuit.parameters
+    )
+    local_estimator = StatevectorEstimator(seed=seed)
+    local_result = local_estimator.run(
+        [(local_circuit, build_observables(), [local_parameter_values])]
+    ).result()[0]
+    local_expectations = tuple(
+        float(value) for value in np.asarray(local_result.data.evs).reshape(-1)
+    )
+    if len(local_expectations) != 2 or not np.isfinite(local_expectations).all():
+        raise RuntimeError(f"Unexpected local Estimator result: {local_expectations}")
+
+    output_values = tuple(float(value) for value in output_scale)
+    local_q_values = tuple(
+        expectation * scale
+        for expectation, scale in zip(local_expectations, output_values, strict=True)
+    )
+    return SmokeTestInputs(
+        observation=tuple(float(value) for value in observation),
+        parameter_values=parameter_values,
+        output_scale=output_values,
+        local_expectations=local_expectations,
+        local_q_values=local_q_values,
+    )
+
+
+def _result_path(job_id: str) -> Path:
+    RESULTS_DIRECTORY.mkdir(parents=True, exist_ok=True)
+    safe_job_id = "".join(character for character in job_id if character.isalnum() or character in "-_")
+    return RESULTS_DIRECTORY / f"ibm_smoke_test_{safe_job_id}.json"
+
+
+def run_runtime_smoke_test(
+    prepared: PreparedVQC,
+    inputs: SmokeTestInputs,
+    *,
+    target_precision: float = TARGET_PRECISION,
+    on_submitted: Callable[[str, Path], None] | None = None,
+) -> tuple[dict, Path]:
+    """Submit one confirmed Runtime job and save reproducibility metadata."""
+    if target_precision <= 0:
+        raise ValueError("Target precision must be greater than zero.")
+
+    estimator = EstimatorV2(mode=prepared.backend)
+    job = estimator.run(
+        [(prepared.circuit, list(prepared.observables), [inputs.parameter_values])],
+        precision=target_precision,
+    )
+    job_id = job.job_id()
+    result_path = _result_path(job_id)
+
+    metadata = {
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "status": "submitted",
+        "backend": prepared.backend.name,
+        "job_id": job_id,
+        "target_precision": target_precision,
+        "observation": inputs.observation,
+        "seed": 42,
+        "original_depth": prepared.original_depth,
+        "isa_depth": prepared.transpiled_depth,
+        "two_qubit_gates": prepared.two_qubit_gates,
+        "local_expectations": inputs.local_expectations,
+        "local_q_values": inputs.local_q_values,
+    }
+    result_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+    if on_submitted is not None:
+        on_submitted(job_id, result_path)
+
+    runtime_result = job.result()[0]
+    expectations = tuple(
+        float(value) for value in np.asarray(runtime_result.data.evs).reshape(-1)
+    )
+    if len(expectations) != 2 or not np.isfinite(expectations).all():
+        raise RuntimeError(f"Unexpected Runtime Estimator result: {expectations}")
+
+    q_values = tuple(
+        expectation * scale
+        for expectation, scale in zip(expectations, inputs.output_scale, strict=True)
+    )
+    metadata.update(
+        {
+            "status": "completed",
+            "runtime_expectations": expectations,
+            "runtime_q_values": q_values,
+            "selected_action": int(np.argmax(q_values)),
+        }
+    )
+    result_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+    return metadata, result_path
+
+
 def main() -> None:
     """Run Q8.2 through dialogs so no terminal input is required."""
+    # Imported here, not at module scope: prepare_vqc_for_backend() is called
+    # headlessly by run_experiment.py --arms ibm, and a Python built without
+    # Tk would otherwise make this whole module unimportable.
+    import tkinter as tk
+    from tkinter import messagebox, simpledialog
+
     root = tk.Tk()
     root.withdraw()
     root.attributes("-topmost", True)
@@ -168,6 +320,53 @@ def main() -> None:
         messagebox.showinfo(
             "IBM backend preparation",
             _format_summary(prepared),
+            parent=root,
+        )
+
+        inputs = build_smoke_test_inputs(prepared)
+        should_submit = messagebox.askyesno(
+            "Submit IBM Runtime smoke test?",
+            "Q8.2 is complete.\n\n"
+            f"Backend: {prepared.backend.name}\n"
+            f"Observation: {inputs.observation}\n"
+            f"Target precision: {TARGET_PRECISION}\n"
+            f"Local Q-values: {tuple(round(v, 6) for v in inputs.local_q_values)}\n\n"
+            "Selecting Yes will submit a real IBM Quantum job, use QPU "
+            "execution time, and might require waiting in the queue.\n\n"
+            "Submit the job now?",
+            parent=root,
+        )
+        if not should_submit:
+            messagebox.showinfo(
+                "No job submitted",
+                "Q8.2 remains complete. No Runtime job was submitted.",
+                parent=root,
+            )
+            return
+
+        def show_submitted(job_id: str, result_path: Path) -> None:
+            messagebox.showinfo(
+                "IBM Runtime job submitted",
+                f"Job ID: {job_id}\n\n"
+                "The job was submitted successfully. After closing this "
+                "message, the program will wait for the queued job to finish.\n\n"
+                f"Submission metadata saved to:\n{result_path}",
+                parent=root,
+            )
+
+        metadata, result_path = run_runtime_smoke_test(
+            prepared,
+            inputs,
+            on_submitted=show_submitted,
+        )
+        messagebox.showinfo(
+            "IBM Runtime smoke test complete",
+            f"Backend: {metadata['backend']}\n"
+            f"Job ID: {metadata['job_id']}\n"
+            f"Expectation values: {metadata['runtime_expectations']}\n"
+            f"Q-values: {metadata['runtime_q_values']}\n"
+            f"Selected action: {metadata['selected_action']}\n\n"
+            f"Results saved to:\n{result_path}",
             parent=root,
         )
     except Exception as error:
