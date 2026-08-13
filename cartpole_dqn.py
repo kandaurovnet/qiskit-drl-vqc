@@ -116,9 +116,9 @@ def shape_reward(norm_obs: np.ndarray, base_reward: float, terminated: bool) -> 
     x, x_dot, theta, _theta_dot = norm_obs
     return (base_reward
             - 1.0 * abs(float(x))
-            - 1.0 * abs(float(theta))
+            - 2.0 * abs(float(theta))
             - 5.0 * abs(float(x_dot))
-            - (200.0 if terminated else 0.0))
+            - (100.0 if terminated else 0.0))
 
 
 # ---------------------------------------------------------------------------
@@ -289,7 +289,13 @@ def train(
     eval_every_steps: int = 2500,
     eval_episodes: int = 10,
     replay_capacity: int = 100_000,
-    lr: float = 2.3e-3,
+    # None resolves below to an agent-dependent default. 2.3e-3 is the RL-Zoo
+    # rate tuned for the classical MLP and is too aggressive for the circuit:
+    # the quantum agent scores ~336-427 and fails to solve at 2.3e-3, and
+    # solves at 1e-3. run_experiment.py has always split these two rates; this
+    # is the same split for the direct CLI, which used to apply the classical
+    # rate to both agents.
+    lr: float | None = None,
     # Only used by networks exposing parameter_groups() (the quantum net).
     # None resolves below to a shaping-dependent default.
     lr_output: float | None = None,
@@ -342,6 +348,8 @@ def train(
     # agent fails; at 0.3 it reaches 320-430 and solves 3/3 (mean 491.5, std
     # 11.2) versus 1/3 (mean 408.6, std 63.5). Unshaped runs keep 0.1, which is
     # what the narrower range was calibrated for.
+    if lr is None:
+        lr = 1e-3 if agent == "quantum" else 2.3e-3
     if lr_output is None:
         lr_output = 0.3 if reward_shaping else 0.1
 
@@ -541,6 +549,8 @@ def train(
         "episodes_run": len(episode_rewards),
         "params": sum(p.numel() for p in policy_net.parameters()),
         "seed": seed,
+        "lr": lr,
+        "lr_output": lr_output,
         "double_dqn": double_dqn,
         "stop_reason": stop_reason,
         "tau": tau,
@@ -600,7 +610,8 @@ if __name__ == "__main__":
     parser.add_argument("--total-steps", type=int, default=50_000)
     parser.add_argument("--out-dir", type=str, default="results")
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--lr", type=float, default=2.3e-3)
+    parser.add_argument("--lr", type=float, default=None,
+                        help="default 1e-3 for --agent quantum, 2.3e-3 for classical")
     parser.add_argument("--lr-output", type=float, default=None,
                         help="learning rate for VQCQNetwork.output_scale (quantum only); default 0.3 with --reward-shaping, else 0.1")
     parser.add_argument("--eps-end", type=float, default=0.04)
