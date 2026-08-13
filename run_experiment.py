@@ -6,14 +6,16 @@ The two halves meet at exactly one place — ``cartpole_dqn.build_q_network()``
 returns either a classical MLP or ``vqc.VQCQNetwork``, and the DQN loop is
 otherwise identical. Any difference is therefore attributable to the network.
 
-Three arms, because the obvious two-way comparison is misleading. The repo's
-classical baseline uses hidden=(256,256) = 67,586 parameters, 97% of which sit
-in a single 256x256 layer that CartPole's 4-in/2-out interface does not need.
-Beating that with 46 quantum parameters says more about the baseline being
-oversized than about quantum efficiency. The ``classical-small`` arm uses
-hidden=(6,) = 44 parameters, which is the honest like-for-like comparison.
+Four arms, because the obvious two-way comparison is misleading. The default
+classical baseline (hidden=(32,32) = 1,282 parameters) is far wider than
+CartPole's 4-in/2-out interface needs, so beating it with a ~70-parameter
+circuit says more about the baseline being oversized than about quantum
+efficiency. The ``classical-small`` arm (hidden=(10,) = 72 parameters) is the
+honest like-for-like comparison against the quantum arm at the default
+--n-layers 5 (70 parameters). ``quantum-noisy`` adds finite-shot sampling on
+top, to show what the same circuit costs under measurement noise.
 
-    python run_experiment.py                     # 3 arms, 1 seed
+    python run_experiment.py                     # 4 arms, 1 seed
     python run_experiment.py --seeds 0 1 2 3 4   # averaged over 5 seeds
     python run_experiment.py --smoke             # wiring check, ~3 min
     python run_experiment.py --arms quantum      # one arm only
@@ -22,6 +24,15 @@ Treat a single-seed result as indicative, not conclusive: the committed
 classical runs include both a solve (greedy 500.0) and a failure (greedy 111.4)
 at identical settings. Passing several seeds reports the median and the full
 spread instead, which is what any comparison between arms should rest on.
+
+Early stopping is OFF here by design. cartpole_dqn.train() defaults
+stop_on_eval=True, which ends a run as soon as its greedy policy clears the
+bar -- excellent for a single run, but it would let arms train for different
+numbers of steps, and then a weaker greedy score might only mean that arm quit
+sooner. Matched budgets are what make "any difference is attributable to the
+network" true, so pass --stop-on-eval only if you want sample-efficiency
+(steps-to-solve) rather than quality-at-a-fixed-budget. The summary prints the
+mean step count per arm either way, so an unmatched comparison is visible.
 
 Runtime note: the quantum arm uses the torch statevector backend (~8 ms per
 gradient step). ``--quantum-backend qiskit`` is ~1900x slower and is only
@@ -77,6 +88,8 @@ def run_one(arm, seed, args):
         lr=args.lr_quantum if agent == "quantum" else args.lr_classical,
         eval_every_steps=args.eval_every_steps,
         eval_episodes=args.eval_episodes,
+        n_step=args.n_step,
+        stop_on_eval=args.stop_on_eval,
         seed=seed,
         out_dir=args.out_dir,
         name=name,
@@ -99,23 +112,24 @@ def summarize(results):
             "greedy_min": min(greedy),
             "greedy_max": max(greedy),
             "solved": sum(r["solved"] for r in runs),
+            "steps": statistics.mean(sum(r["episode_rewards"]) for r in runs),
             "wall_sec": statistics.mean(r["wall_sec"] for r in runs),
         })
     return sorted(rows, key=lambda r: -r["greedy_median"])
 
 
 def print_summary(rows, solve_reward=475.0):
-    print(f"\n{'=' * 84}\nRESULTS   median over seeds; 'solved' = greedy mean >= "
-          f"{solve_reward:.0f}\n{'=' * 84}")
+    print(f"\n{'=' * 93}\nRESULTS   median over seeds; 'solved' = greedy mean >= "
+          f"{solve_reward:.0f}\n{'=' * 93}")
     print(f"{'arm':<18}{'params':>8}{'median':>10}{'mean':>9}{'min':>8}{'max':>8}"
-          f"{'solved':>9}{'wall':>10}")
-    print("-" * 84)
+          f"{'solved':>9}{'steps':>9}{'wall':>10}")
+    print("-" * 93)
     for r in rows:
         solved = f"{r['solved']}/{r['seeds']}"
         print(f"{r['arm']:<18}{r['params']:>8}{r['greedy_median']:>10.1f}"
               f"{r['greedy_mean']:>9.1f}{r['greedy_min']:>8.0f}{r['greedy_max']:>8.0f}"
-              f"{solved:>9}{r['wall_sec']:>9.0f}s")
-    print("-" * 84)
+              f"{solved:>9}{r['steps']:>9.0f}{r['wall_sec']:>9.0f}s")
+    print("-" * 93)
 
 
 def plot_curves(results, out_dir, window=50):
@@ -201,6 +215,13 @@ def main():
     p.add_argument("--n-layers", type=int, default=5)
     p.add_argument("--eval-every-steps", type=int, default=2500)
     p.add_argument("--eval-episodes", type=int, default=10)
+    p.add_argument("--n-step", type=int, default=3,
+                   help="n-step return window, passed to every arm alike.")
+    p.add_argument("--stop-on-eval", action=argparse.BooleanOptionalAction,
+                   default=False,
+                   help="Stop each arm once its greedy policy clears the bar. "
+                        "Off by default: it unmatches the step budgets the "
+                        "cross-arm comparison rests on.")
     p.add_argument("--quantum-backend", default="torch")
     p.add_argument("--noisy-shots", type=int, default=1024,
                    help="Finite-sampling noise for the quantum-noisy arm.")
