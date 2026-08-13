@@ -94,6 +94,7 @@ The classical baseline **solves CartPole-v1**:
 | Parameters | 67,586 |
 
 Reproduce with `python cartpole_dqn.py --agent classical --tag _zoo` (seed 0).
+
 Use `python watch.py --checkpoint results/classical_zoo_policy.pt --out results/cartpole_solved.gif` for animation
 
 ### Solved is judged on the greedy policy, not training reward
