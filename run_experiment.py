@@ -120,6 +120,7 @@ def run_one(arm, seed, args):
         eval_every_steps=args.eval_every_steps,
         eval_episodes=args.eval_episodes,
         n_step=args.n_step,
+        reward_shaping=args.reward_shaping,
         stop_on_eval=args.stop_on_eval,
         seed=seed,
         out_dir=args.out_dir,
@@ -270,6 +271,14 @@ def main():
                    help="Stop each arm once its greedy policy clears the bar. "
                         "Off by default: it unmatches the step budgets the "
                         "cross-arm comparison rests on.")
+    p.add_argument("--reward-shaping", action=argparse.BooleanOptionalAction,
+                   default=True,
+                   help="Dense centering/velocity shaping on top of the native "
+                        "+1/step reward (see cartpole_dqn.shape_reward). On by "
+                        "default and applied to every arm alike, since an arm "
+                        "trained on a different reward is not comparable. "
+                        "--no-reward-shaping trains all arms on the raw env "
+                        "reward; the solve check is on true env reward either way.")
     p.add_argument("--quantum-backend", default="torch",
                    help="'torch' (fast, default) or 'qiskit' (exact, ~1900x slower)")
     p.add_argument("--noisy-shots", type=int, default=1024,
