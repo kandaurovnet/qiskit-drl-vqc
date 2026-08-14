@@ -14,4 +14,13 @@ venv/
 .vscode/
 .idea/
 
-results/
+unrelated_reference/
+docs/
+artifacts/
+legacy/
+logs/
+
+
+# results_drl/ sweep output: keep the JSON data (reproducibility) and the
+# aggregate curve, ignore the regeneratable per-seed binaries (checkpoints,
+# per-seed plots, solved GIFs) -- rerun run_experiment.py to recreate them.
