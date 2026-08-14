@@ -116,8 +116,8 @@ def shape_reward(norm_obs: np.ndarray, base_reward: float, terminated: bool) -> 
     x, x_dot, theta, _theta_dot = norm_obs
     return (base_reward
             - 1.0 * abs(float(x))
-            - 8.0 * abs(float(theta))
-            - 2.0 * abs(float(x_dot))
+            - 1.0 * abs(float(theta))
+            - 5.0 * abs(float(x_dot))
             - (200.0 if terminated else 0.0))
 
 
