@@ -305,6 +305,20 @@ for full flag lists. `artifacts/ibm/README.md` explains the `core/` /
 
 ## Results
 
+### Model sizes across the four arms
+
+| Model | Hidden Layers | Number of Parameters |
+|---|---|---:|
+| `classical` | (32, 32) | 1,282 |
+| `classical-small` | (10,) | 72 |
+| `quantum` | 5 | 70 |
+| `quantum-noisy` | 5 | 70 |
+
+For the quantum arms, "Hidden Layers" is `--n-layers` (VQC depth), not an MLP
+width. `classical-small` at 72 parameters is the deliberately matched
+baseline against the 70-parameter quantum circuit — see [The four experiment
+arms](#the-four-experiment-arms) above.
+
 The classical baseline **solves CartPole-v1**:
 
 | Metric | Value |
