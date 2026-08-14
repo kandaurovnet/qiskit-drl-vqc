@@ -132,7 +132,7 @@ def main():
         print(f"{str(r['shots'] or 'exact'):>7}{r['reward_mean']:>10.1f}{rng:>14}"
               f"{r['agreement']:>11.1%}{r['q_err_max']:>11.2f}{r['q_err_mean']:>11.2f}")
 
-    print(f"\nAction agreement by Q-margin (fraction of |Q0-Q1| over max|Q|):")
+    print("\nAction agreement by Q-margin (fraction of |Q0-Q1| over max|Q|):")
     print(f"{'margin':>16}{'states':>8}" + "".join(f"{s:>10}" for s in args.shots))
     bucket_rows = [r["margin_buckets"] for r in rows[1:]]
     for i, (lo, hi, n, _) in enumerate(bucket_rows[0]):

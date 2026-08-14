@@ -16,7 +16,6 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     BaseDocTemplate,
     Frame,
-    KeepTogether,
     PageBreak,
     PageTemplate,
     Paragraph,

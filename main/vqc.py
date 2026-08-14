@@ -53,6 +53,8 @@ Installation:
     .venv/bin/python -m pip install -r requirements.txt
 """
 
+from typing import Any
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -65,7 +67,6 @@ from qiskit_machine_learning.neural_networks import EstimatorQNN
 from qiskit_machine_learning.connectors import TorchConnector
 
 import torch_statevector
-import torch_density
 
 # ---------------------------------------------------------------------------
 # Hyperparameters
@@ -252,7 +253,10 @@ class VQCQNetwork(nn.Module):
             self.register_buffer(
                 "_obs", torch_statevector.compile_observables(observables, n_qubits))
             self.theta = nn.Parameter(torch.tensor(init_theta, dtype=torch.float32))
-            self.qlayer = None
+            # Any, not TorchConnector | None: the torch backends leave this
+            # None, the qiskit backend assigns a TorchConnector, and qiskit
+            # ships no type information for what that wraps.
+            self.qlayer: Any = None
             return
 
         if backend == "torch":
@@ -397,13 +401,16 @@ def calibrate_damping(n_layers: int = N_LAYERS, n_qubits: int = N_QUBITS,
         rho = DensityMatrix(sim.run(bound).result().data()["density_matrix"])
         noisy.append([rho.expectation_value(o).real for o in laid])
 
-    clean, noisy = np.array(clean), np.array(noisy)
+    # New names rather than rebinding clean/noisy: they are accumulated as
+    # lists above, and reassigning them to arrays makes every indexing
+    # expression below an error against their declared list type.
+    clean_arr, noisy_arr = np.array(clean), np.array(noisy)
     slopes, r2s = [], []
-    for a in range(clean.shape[1]):
-        fit = np.polyfit(clean[:, a], noisy[:, a], 1)
-        pred = np.polyval(fit, clean[:, a])
-        ss_res = ((noisy[:, a] - pred) ** 2).sum()
-        ss_tot = ((noisy[:, a] - noisy[:, a].mean()) ** 2).sum()
+    for a in range(clean_arr.shape[1]):
+        fit = np.polyfit(clean_arr[:, a], noisy_arr[:, a], 1)
+        pred = np.polyval(fit, clean_arr[:, a])
+        ss_res = ((noisy_arr[:, a] - pred) ** 2).sum()
+        ss_tot = ((noisy_arr[:, a] - noisy_arr[:, a].mean()) ** 2).sum()
         slopes.append(float(fit[0]))
         r2s.append(float(1 - ss_res / ss_tot))
     return slopes, r2s
@@ -430,12 +437,22 @@ def check_torch_matches_qiskit(n_layers: int = N_LAYERS, batch: int = 8,
     out_qk, out_tc = qk(x), tc(x)
     d_out = float((out_qk - out_tc).abs().max().detach())
 
-    qk.zero_grad(); tc.zero_grad()
-    out_qk.sum().backward(); out_tc.sum().backward()
+    qk.zero_grad()
+    tc.zero_grad()
+    out_qk.sum().backward()
+    out_tc.sum().backward()
+
+    def grad_of(t: torch.Tensor) -> torch.Tensor:
+        """A parameter's gradient. Tensor.grad is Optional, but backward() has
+        just run, so a missing one means the graph is detached -- which would
+        silently compare zeros and pass. Fail instead."""
+        assert t.grad is not None, "no gradient reached this parameter"
+        return t.grad
+
     d_grad = max(
-        float((qk.qlayer.weight.grad.float() - tc.theta.grad).abs().max()),
-        float((qk.input_scale.grad - tc.input_scale.grad).abs().max()),
-        float((qk.output_scale.grad - tc.output_scale.grad).abs().max()),
+        float((grad_of(qk.qlayer.weight).float() - grad_of(tc.theta)).abs().max()),
+        float((grad_of(qk.input_scale) - grad_of(tc.input_scale)).abs().max()),
+        float((grad_of(qk.output_scale) - grad_of(tc.output_scale)).abs().max()),
     )
     assert d_out < tol, f"outputs diverge from Qiskit by {d_out:.2e}"
     assert d_grad < tol, f"gradients diverge from Qiskit by {d_grad:.2e}"

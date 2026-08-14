@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 import numpy as np
 from qiskit.circuit import Parameter
@@ -33,8 +33,12 @@ RESULTS_DIRECTORY = Path(__file__).with_name("artifacts") / "ibm" / "validation"
 class PreparedVQC:
     """Artifacts needed by the later Q8.3 Runtime Estimator submission."""
 
-    backend: object
-    circuit: object
+    # Qiskit ships no type information, so these stay Any: `backend` is a
+    # runtime-resolved BackendV2 (.name/.num_qubits/.status()) and `circuit` a
+    # QuantumCircuit. Annotating them `object` instead makes every downstream
+    # attribute access an error in four other modules.
+    backend: Any
+    circuit: Any
     observables: tuple[SparsePauliOp, ...]
     input_parameters: tuple[Parameter, ...]
     weight_parameters: tuple[Parameter, ...]

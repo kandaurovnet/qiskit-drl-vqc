@@ -52,7 +52,7 @@ Transition = namedtuple(
 
 class ReplayMemory:
     def __init__(self, capacity: int):
-        self.memory = deque(maxlen=capacity)
+        self.memory: deque[Transition] = deque(maxlen=capacity)
 
     def push(self, *args):
         self.memory.append(Transition(*args))
@@ -236,7 +236,7 @@ def evaluate(policy_net: nn.Module, episodes: int = 20, seed: int = 10_000):
             with torch.no_grad():
                 action = int(policy_net(state.unsqueeze(0)).argmax(dim=1).item())
             obs, reward, terminated, truncated, _ = env.step(action)
-            total += reward
+            total += float(reward)
             if terminated or truncated:
                 break
         rewards.append(total)
@@ -362,7 +362,11 @@ def train(
     env = gym.make("CartPole-v1")
     env.reset(seed=seed)
     env.action_space.seed(seed)
-    n_actions = env.action_space.n
+    # gym.make returns Env[Any, Any], whose action_space is the base Space --
+    # narrow it so `.n` is visible, and so a non-discrete env fails loudly here
+    # rather than deep inside select_action().
+    assert isinstance(env.action_space, gym.spaces.Discrete)
+    n_actions = int(env.action_space.n)
 
     policy_net = build_q_network(agent, seed=seed).to(DEVICE)
     target_net = build_q_network(agent, seed=seed).to(DEVICE)
@@ -377,8 +381,13 @@ def train(
     # penalty, targets span ~[-200, +100], and a run whose output_scale stalls
     # near 100 cannot represent them (measured: the one seed that stalled at
     # 98.8 was the one that failed to solve).
-    if hasattr(policy_net, "parameter_groups"):
-        optimizer = optim.Adam(policy_net.parameter_groups(
+    # Fetched via getattr rather than policy_net.parameter_groups: nn.Module
+    # routes unknown attributes through __getattr__, which is typed as
+    # returning Tensor | Module, so the direct call reads as "Tensor not
+    # callable". Behaviour is identical to the hasattr() check it replaces.
+    parameter_groups = getattr(policy_net, "parameter_groups", None)
+    if parameter_groups is not None:
+        optimizer = optim.Adam(parameter_groups(
             lr_theta=lr, lr_input=lr, lr_output=lr_output))
     else:
         optimizer = optim.Adam(policy_net.parameters(), lr=lr)
@@ -403,7 +412,7 @@ def train(
 
     for ep in range(episodes):
         obs, _info = env.reset()
-        nstep_buf = deque()
+        nstep_buf: deque[tuple[torch.Tensor, int, float, torch.Tensor, bool]] = deque()
         state = torch.tensor(normalize_obs(obs), device=DEVICE)
         ep_reward = 0.0
         ep_loss_sum = 0.0
@@ -416,7 +425,10 @@ def train(
             eps = eps_start + frac * (eps_end - eps_start)
 
             action = select_action(state, policy_net, eps, n_actions)
-            obs, reward, terminated, truncated, _info = env.step(action)
+            # gymnasium types step()'s reward as SupportsFloat, so pin it to a
+            # real float once here rather than at each downstream use.
+            obs, reward_raw, terminated, truncated, _info = env.step(action)
+            reward = float(reward_raw)
             done = terminated or truncated
             ep_reward += reward
 

@@ -15,10 +15,15 @@ honest like-for-like comparison against the quantum arm at the default
 --n-layers 5 (70 parameters). ``quantum-noisy`` adds finite-shot sampling on
 top, to show what the same circuit costs under measurement noise.
 
-    python run_experiment.py                     # 4 arms, 1 seed
-    python run_experiment.py --seeds 0 1 2 3 4   # averaged over 5 seeds
-    python run_experiment.py --smoke             # wiring check, ~3 min
-    python run_experiment.py --arms quantum      # one arm only
+Always prefix every run with these three environment variables (see the
+runtime note at the bottom -- without them a run is ~2x slower, and the
+penalty grows with core count):
+
+    CUDA_VISIBLE_DEVICES="" OMP_NUM_THREADS=1 OMP_WAIT_POLICY=PASSIVE \
+        python run_experiment.py                 # 4 arms, 1 seed
+    ... --seeds 0 1 2 3 4                        # averaged over 5 seeds
+    ... --smoke                                  # wiring check, ~3 min
+    ... --arms quantum                           # one arm only
 
 Treat a single-seed result as indicative, not conclusive: the committed
 classical runs include both a solve (greedy 500.0) and a failure (greedy 111.4)
@@ -41,9 +46,31 @@ is deployment evidence, not a fourth training result -- one capped episode is
 not comparable to the local arms' full evaluation, so it is opt-in
 (``--arms ibm``) rather than part of the default set.
 
-Runtime note: the quantum arm uses the torch statevector backend (~8 ms per
-gradient step). ``--quantum-backend qiskit`` is ~1900x slower and is only
-practical on a smoke test, to confirm the two agree.
+Runtime note: the quantum arm uses the torch statevector backend (~7 ms per
+gradient step, single-threaded CPU). ``--quantum-backend qiskit`` is ~1900x
+slower and is only practical on a smoke test, to confirm the two agree.
+
+A slow run is almost always the missing environment prefix above, and it gets
+*worse* on bigger hardware -- the symptom is a workstation running slower than
+a laptop, with nvidia-smi near idle and one python process at 1000%+ CPU. The
+VQC statevector is 8 KB (16 amplitudes x batch 64, complex64) pushed through
+~92 strictly sequential gates, so there is neither enough data to occupy a GPU
+nor any parallelism for extra cores to exploit:
+
+  - ``CUDA_VISIBLE_DEVICES=""`` -- cartpole_dqn.DEVICE auto-selects CUDA when
+    present, but the run is kernel-launch-bound: a ~3 us launch wraps ~0.16 ns
+    of arithmetic, and gates cannot overlap because each consumes the
+    previous one's output. Measured 197 s on an RTX 5090 vs 90 s on CPU for
+    an identical 5,000-step run. A faster GPU does not help; only much larger
+    batches or kernel fusion (CUDA graphs, torch.compile) would.
+  - ``OMP_NUM_THREADS=1`` -- torch otherwise opens a parallel region, with a
+    spin-wait barrier, around every tiny op. Per gradient step, 24 threads vs
+    1: 9.01 ms vs 6.76 ms idle, and 272.71 ms vs 7.60 ms under contention.
+  - ``OMP_WAIT_POLICY=PASSIVE`` -- idle OpenMP threads sleep instead of
+    spinning, so a stray pool cannot burn cores it is not using.
+
+Measured on a 24-core Threadripper PRO 7965WX + RTX 5090 (Linux). See the
+README section "Runs are slow?" for the full comparison table.
 """
 
 import argparse

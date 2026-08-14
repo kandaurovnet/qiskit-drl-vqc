@@ -31,7 +31,7 @@ whenever the circuit or device changes.
 
 import numpy as np
 import torch
-from qiskit.circuit import Parameter, ParameterExpression
+from qiskit.circuit import ParameterExpression
 from qiskit.quantum_info import Kraus
 
 # Gate matrices for the transpiled (native) gate set, plus the logical set.
