@@ -10,10 +10,13 @@ Four arms, because the obvious two-way comparison is misleading. The default
 classical baseline (hidden=(32,32) = 1,282 parameters) is far wider than
 CartPole's 4-in/2-out interface needs, so beating it with a ~70-parameter
 circuit says more about the baseline being oversized than about quantum
-efficiency. The ``classical-small`` arm (hidden=(10,) = 72 parameters) is the
-honest like-for-like comparison against the quantum arm at the default
---n-layers 5 (70 parameters). ``quantum-noisy`` adds finite-shot sampling on
-top, to show what the same circuit costs under measurement noise.
+efficiency. The ``classical-small`` arm is the honest like-for-like
+comparison: its width is derived from --n-layers by classical_small_hidden(),
+as the narrowest hidden layer whose parameter count *just exceeds* the VQC's,
+so the classical net is never the smaller of the two (depth 5 -> hidden=(10,),
+72 params against the circuit's 70). Pass --classical-small-hidden to override.
+``quantum-noisy`` adds finite-shot sampling on top, to show what the same
+circuit costs under measurement noise.
 
 Always prefix every run with these three environment variables (see the
 runtime note at the bottom -- without them a run is ~2x slower, and the
@@ -88,10 +91,56 @@ import numpy as np
 import cartpole_dqn
 from cartpole_dqn import train
 
-# arm name -> (agent kind, network construction kwargs)
+OBS_DIM = 4    # CartPole observation width
+N_ACTIONS = 2  # push left / push right
+N_QUBITS = 4   # one qubit per observation feature
+
+
+def vqc_param_count(n_layers, n_qubits=N_QUBITS, n_actions=N_ACTIONS):
+    """Trainable parameters in VQCQNetwork at this depth.
+
+    Three groups, matching vqc.VQCQNetwork:
+        theta         2 rotations per qubit per layer, plus a final layer
+        input_scale   one per (layer, qubit), for data re-uploading
+        output_scale  one per action
+    """
+    return 2 * n_qubits * (n_layers + 1) + n_qubits * n_layers + n_actions
+
+
+def mlp_param_count(hidden, obs_dim=OBS_DIM, n_actions=N_ACTIONS):
+    """Trainable parameters in ClassicalQNetwork with this hidden tuple."""
+    total, prev = 0, obs_dim
+    for h in hidden:
+        total += prev * h + h
+        prev = h
+    return total + prev * n_actions + n_actions
+
+
+def classical_small_hidden(n_layers, obs_dim=OBS_DIM,
+                           n_actions=N_ACTIONS):
+    """Narrowest single hidden layer whose parameter count *just exceeds* the
+    VQC's at this depth.
+
+    The point of the classical-small arm is to deny the quantum arm a parameter
+    advantage, so the classical net must be the one holding slightly *more*
+    parameters. Sizing it below the VQC would hand the quantum arm exactly the
+    edge this arm exists to remove.
+
+    One hidden unit costs (obs_dim + 1 + n_actions) parameters, so the width is
+    the smallest h satisfying h*(obs_dim + 1 + n_actions) + n_actions > VQC(L).
+    """
+    per_unit = obs_dim + 1 + n_actions
+    target = vqc_param_count(n_layers)
+    h = (target - n_actions) // per_unit + 1
+    assert mlp_param_count((h,)) > target >= mlp_param_count((h - 1,))
+    return (h,)
+
+
+# arm name -> (agent kind, network construction kwargs).
+# classical-small's width is filled in from --n-layers by resolve_arms().
 ARMS = {
     "classical":       ("classical", {"hidden": (32, 32)}),
-    "classical-small": ("classical", {"hidden": (10,)}),
+    "classical-small": ("classical", {"hidden": None}),
     "quantum":         ("quantum",   {}),
     "quantum-noisy":   ("quantum",   {"backend": "torch-noisy"}),
     # Evaluation-only, on real hardware. Excluded from the default arms.
@@ -99,6 +148,14 @@ ARMS = {
 }
 
 TRAINING_ARMS = [a for a in ARMS if a != "ibm"]
+
+
+def resolve_arms(args):
+    """Fill in the arm kwargs that depend on CLI arguments."""
+    hidden = (tuple(args.classical_small_hidden) if args.classical_small_hidden
+              else classical_small_hidden(args.n_layers))
+    ARMS["classical-small"] = ("classical", {"hidden": hidden})
+    return hidden
 
 
 def run_one(arm, seed, args):
@@ -194,7 +251,28 @@ def print_summary(rows, solve_reward=475.0):
               "not a training result. It does not rank against the other arms.")
 
 
-def plot_curves(results, out_dir, filename="benchmark_curves.png", window=50):
+def arm_label(arm, runs, n_layers=None):
+    """Legend entry: parameter count plus the architecture behind it.
+
+    Parameters alone make the classical-small/quantum pairing look arbitrary --
+    72 vs 70 says nothing about why. Naming the depth and width shows what is
+    actually being traded: VQC layers against hidden units.
+    """
+    params = runs[0]["params"]
+    agent = ARMS[arm][0] if arm in ARMS else ""
+    if agent == "quantum":
+        depth = n_layers if n_layers is not None else "?"
+        shape = f"{depth} layers"
+    elif agent == "classical":
+        hidden = ARMS[arm][1].get("hidden")
+        shape = ("hidden=" + "x".join(str(h) for h in hidden)) if hidden else "MLP"
+    else:
+        shape = "frozen policy on QPU"
+    return f"{arm} ({params} params, {shape})"
+
+
+def plot_curves(results, out_dir, filename="benchmark_curves.png", window=50,
+                n_layers=None):
     """Median training curve per arm, with the inter-seed spread shaded."""
     fig, (ax_t, ax_e) = plt.subplots(1, 2, figsize=(13, 5), dpi=150)
     colors = {"classical": "tab:blue", "classical-small": "tab:cyan",
@@ -219,7 +297,7 @@ def plot_curves(results, out_dir, filename="benchmark_curves.png", window=50):
             xs = np.arange(longest)
         # The IBM arm is a single episode, and a 1-point line draws nothing.
         style = {"marker": "*", "ms": 14} if len(xs) == 1 else {}
-        ax_t.plot(xs, med, color=col, label=f"{arm} ({runs[0]['params']} params)",
+        ax_t.plot(xs, med, color=col, label=arm_label(arm, runs, n_layers),
                   **style)
         ax_t.fill_between(xs, lo, hi, color=col, alpha=0.15)
 
@@ -230,7 +308,8 @@ def plot_curves(results, out_dir, filename="benchmark_curves.png", window=50):
             n = min(len(r["eval_history"]) for r in runs)
             steps = [s for s, _ in runs[0]["eval_history"][:n]]
             scores = np.median([[v for _, v in r["eval_history"][:n]] for r in runs], axis=0)
-            ax_e.plot(steps, scores, color=col, marker="o", ms=3, label=arm)
+            ax_e.plot(steps, scores, color=col, marker="o", ms=3,
+                      label=arm_label(arm, runs, n_layers))
 
     for ax, title, xlabel in (
             (ax_t, f"Training reward (median, {window}-episode mean)", "Episode"),
@@ -241,7 +320,8 @@ def plot_curves(results, out_dir, filename="benchmark_curves.png", window=50):
         ax.set_ylabel("Reward")
         ax.legend()
 
-    plt.suptitle("CartPole-v1: classical DQN vs DRL+VQC")
+    depth = f"  (VQC depth {n_layers})" if n_layers is not None else ""
+    plt.suptitle(f"CartPole-v1: classical DQN vs DRL+VQC{depth}")
     plt.tight_layout()
     path = os.path.join(out_dir, filename)
     plt.savefig(path)
@@ -289,6 +369,12 @@ def main():
     p.add_argument("--lr-classical", type=float, default=2.3e-3)
     p.add_argument("--lr-quantum", type=float, default=1e-3)
     p.add_argument("--n-layers", type=int, default=5)
+    p.add_argument("--classical-small-hidden", nargs="+", type=int, default=None,
+                   metavar="H",
+                   help="Hidden widths for the classical-small arm. Omit to size "
+                        "it automatically from --n-layers, as the narrowest net "
+                        "whose parameter count just exceeds the VQC's (which is "
+                        "the point of the arm -- see classical_small_hidden).")
     p.add_argument("--eval-every-steps", type=int, default=2500)
     p.add_argument("--eval-episodes", type=int, default=10)
     p.add_argument("--n-step", type=int, default=3,
@@ -337,13 +423,23 @@ def main():
         args.eval_every_steps = 2000
         print("SMOKE MODE: 6k steps, 1 seed — checks wiring, not performance.\n")
 
+    hidden = resolve_arms(args)
+    if "classical-small" in args.arms:
+        vqc_n, mlp_n = vqc_param_count(args.n_layers), mlp_param_count(hidden)
+        print(f"classical-small: hidden={hidden} -> {mlp_n} params, against "
+              f"{vqc_n} for the {args.n_layers}-layer VQC (+{mlp_n - vqc_n}).")
+        if mlp_n <= vqc_n:
+            print("  WARNING: classical-small is not larger than the VQC, so "
+                  "the quantum arm holds a parameter advantage.")
+
     os.makedirs(args.out_dir, exist_ok=True)
     results = {a: [run_one(a, s, args) for s in args.seeds] for a in args.arms}
 
     rows = summarize(results)
     print_summary(rows)
     stem = "benchmark_with_ibm" if "ibm" in args.arms else "benchmark"
-    plot_curves(results, args.out_dir, filename=f"{stem}_curves.png")
+    plot_curves(results, args.out_dir, filename=f"{stem}_curves.png",
+                n_layers=args.n_layers)
     make_gifs(results, args.out_dir)
 
     path = os.path.join(args.out_dir, f"{stem}.json")

@@ -15,12 +15,22 @@ venv/
 .idea/
 
 unrelated_reference/
-docs/
 artifacts/
 legacy/
 logs/
 
+# docs/ is scratch, except the hardware walkthrough the README links to --
+# without this exception that link 404s for anyone who clones the repo.
+docs/*
+!docs/ibm_hardware.md
 
-# results_drl/ sweep output: keep the JSON data (reproducibility) and the
-# aggregate curve, ignore the regeneratable per-seed binaries (checkpoints,
-# per-seed plots, solved GIFs) -- rerun run_experiment.py to recreate them.
+
+# results_drl/ sweep output: keep the data and the aggregate figures, ignore
+# the regeneratable per-seed renders -- rerun run_experiment.py to recreate
+# them. Per-seed *_run.json stays (it carries episode rewards and eval history,
+# which the README's learning-behaviour table is computed from) and so do the
+# *_policy.pt checkpoints, which are small and which docs/ibm_hardware.md tells
+# you to replay on hardware.
+results_drl/**/sweep.log
+results_drl/**/*_training.png
+results_drl/**/*_solved.gif

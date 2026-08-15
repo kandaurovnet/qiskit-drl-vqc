@@ -23,6 +23,7 @@
     "lr_classical": 0.0023,
     "lr_quantum": 0.001,
     "n_layers": 5,
+    "classical_small_hidden": null,
     "eval_every_steps": 2500,
     "eval_episodes": 10,
     "n_step": 3,
@@ -33,11 +34,11 @@
     "ibm_backend": "ibm_marrakesh",
     "ibm_account": "cartpole-vqc",
     "ibm_checkpoint": "results/quantum_policy.pt",
-    "ibm_output": "nlayer5-no-rwshp/ibm_cartpole_run.json",
+    "ibm_output": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/ibm_cartpole_run.json",
     "ibm_max_steps": 10,
     "ibm_target_precision": 0.1,
     "ibm_resume": false,
-    "out_dir": "nlayer5-no-rwshp/",
+    "out_dir": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp",
     "smoke": false
   },
   "summary": [
@@ -51,7 +52,7 @@
       "greedy_max": 500.0,
       "solved": 9,
       "steps": 100079.0,
-      "wall_sec": 45.81480119228363
+      "wall_sec": 46.06040983200073
     },
     {
       "arm": "quantum",
@@ -63,7 +64,7 @@
       "greedy_max": 500.0,
       "solved": 9,
       "steps": 90712.7,
-      "wall_sec": 789.0467269659042
+      "wall_sec": 783.102965259552
     },
     {
       "arm": "quantum-noisy",
@@ -75,7 +76,7 @@
       "greedy_max": 477.93,
       "solved": 1,
       "steps": 100201.0,
-      "wall_sec": 776.3215904712677
+      "wall_sec": 739.9863013744355
     },
     {
       "arm": "classical-small",
@@ -87,7 +88,7 @@
       "greedy_max": 500.0,
       "solved": 2,
       "steps": 66807.1,
-      "wall_sec": 24.330723023414613
+      "wall_sec": 24.226896286010742
     }
   ],
   "runs": {
@@ -1101,7 +1102,7 @@
           3.1786574614525307,
           0.0
         ],
-        "elapsed_sec": 41.77599334716797,
+        "elapsed_sec": 42.43734645843506,
         "episodes_run": 1005,
         "params": 1282,
         "seed": 0,
@@ -1382,8 +1383,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 161.19,
         "arm": "classical",
-        "wall_sec": 44.65301537513733,
-        "checkpoint": "nlayer5-no-rwshp/classical_s0_policy.pt"
+        "wall_sec": 45.43589425086975,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical_s0_policy.pt"
       },
       {
         "agent": "classical",
@@ -2489,7 +2490,7 @@
           0.0,
           3.1056092630460626
         ],
-        "elapsed_sec": 42.41326403617859,
+        "elapsed_sec": 42.72397208213806,
         "episodes_run": 1100,
         "params": 1282,
         "seed": 1,
@@ -2770,8 +2771,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 153.39,
         "arm": "classical",
-        "wall_sec": 44.71790957450867,
-        "checkpoint": "nlayer5-no-rwshp/classical_s1_policy.pt"
+        "wall_sec": 45.07878923416138,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical_s1_policy.pt"
       },
       {
         "agent": "classical",
@@ -3714,7 +3715,7 @@
           2.744202477610088,
           0.0
         ],
-        "elapsed_sec": 43.802734375,
+        "elapsed_sec": 43.47941970825195,
         "episodes_run": 937,
         "params": 1282,
         "seed": 2,
@@ -3995,8 +3996,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 171.33,
         "arm": "classical",
-        "wall_sec": 46.215837717056274,
-        "checkpoint": "nlayer5-no-rwshp/classical_s2_policy.pt"
+        "wall_sec": 45.95489025115967,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical_s2_policy.pt"
       },
       {
         "agent": "classical",
@@ -4984,7 +4985,7 @@
           0.0,
           0.0
         ],
-        "elapsed_sec": 44.45214915275574,
+        "elapsed_sec": 44.29926633834839,
         "episodes_run": 982,
         "params": 1282,
         "seed": 3,
@@ -5265,8 +5266,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 251.46,
         "arm": "classical",
-        "wall_sec": 46.87534737586975,
-        "checkpoint": "nlayer5-no-rwshp/classical_s3_policy.pt"
+        "wall_sec": 46.7099826335907,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical_s3_policy.pt"
       },
       {
         "agent": "classical",
@@ -6160,7 +6161,7 @@
           2.6287259944947436,
           2.668000313002267
         ],
-        "elapsed_sec": 44.37011456489563,
+        "elapsed_sec": 44.40217137336731,
         "episodes_run": 888,
         "params": 1282,
         "seed": 4,
@@ -6441,8 +6442,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 204.08,
         "arm": "classical",
-        "wall_sec": 46.77276158332825,
-        "checkpoint": "nlayer5-no-rwshp/classical_s4_policy.pt"
+        "wall_sec": 46.816365242004395,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical_s4_policy.pt"
       },
       {
         "agent": "classical",
@@ -7198,7 +7199,7 @@
           0.0,
           0.0
         ],
-        "elapsed_sec": 45.139790058135986,
+        "elapsed_sec": 45.213234424591064,
         "episodes_run": 750,
         "params": 1282,
         "seed": 5,
@@ -7479,8 +7480,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 216.06,
         "arm": "classical",
-        "wall_sec": 47.54178833961487,
-        "checkpoint": "nlayer5-no-rwshp/classical_s5_policy.pt"
+        "wall_sec": 47.656086444854736,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical_s5_policy.pt"
       },
       {
         "agent": "classical",
@@ -8464,7 +8465,7 @@
           0.0,
           0.0
         ],
-        "elapsed_sec": 43.35472583770752,
+        "elapsed_sec": 43.771087646484375,
         "episodes_run": 978,
         "params": 1282,
         "seed": 6,
@@ -8745,8 +8746,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 201.46,
         "arm": "classical",
-        "wall_sec": 45.78604602813721,
-        "checkpoint": "nlayer5-no-rwshp/classical_s6_policy.pt"
+        "wall_sec": 46.19174337387085,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical_s6_policy.pt"
       },
       {
         "agent": "classical",
@@ -10342,7 +10343,7 @@
           0.0,
           0.0
         ],
-        "elapsed_sec": 41.899476289749146,
+        "elapsed_sec": 42.38041806221008,
         "episodes_run": 1590,
         "params": 1282,
         "seed": 7,
@@ -10623,8 +10624,8 @@
         "best_eval_during_training": 495.9,
         "best_mean_100": 117.83,
         "arm": "classical",
-        "wall_sec": 44.32071614265442,
-        "checkpoint": "nlayer5-no-rwshp/classical_s7_policy.pt"
+        "wall_sec": 44.799864768981934,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical_s7_policy.pt"
       },
       {
         "agent": "classical",
@@ -11922,7 +11923,7 @@
           0.0,
           3.8664032876840793
         ],
-        "elapsed_sec": 42.88523459434509,
+        "elapsed_sec": 43.276511669158936,
         "episodes_run": 1292,
         "params": 1282,
         "seed": 8,
@@ -12203,8 +12204,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 130.84,
         "arm": "classical",
-        "wall_sec": 45.26813507080078,
-        "checkpoint": "nlayer5-no-rwshp/classical_s8_policy.pt"
+        "wall_sec": 45.71593141555786,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical_s8_policy.pt"
       },
       {
         "agent": "classical",
@@ -13193,7 +13194,7 @@
           2.9282877087243833,
           3.005653094034642
         ],
-        "elapsed_sec": 43.5729866027832,
+        "elapsed_sec": 43.81136465072632,
         "episodes_run": 983,
         "params": 1282,
         "seed": 9,
@@ -13474,8 +13475,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 164.04,
         "arm": "classical",
-        "wall_sec": 45.99645471572876,
-        "checkpoint": "nlayer5-no-rwshp/classical_s9_policy.pt"
+        "wall_sec": 46.244550704956055,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical_s9_policy.pt"
       }
     ],
     "classical-small": [
@@ -17483,7 +17484,7 @@
           0.0,
           0.0
         ],
-        "elapsed_sec": 28.554978132247925,
+        "elapsed_sec": 28.588008880615234,
         "episodes_run": 4000,
         "params": 72,
         "seed": 0,
@@ -17732,8 +17733,8 @@
         "best_eval_during_training": 280.6,
         "best_mean_100": 119.68,
         "arm": "classical-small",
-        "wall_sec": 30.007474660873413,
-        "checkpoint": "nlayer5-no-rwshp/classical-small_s0_policy.pt"
+        "wall_sec": 30.04590153694153,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical-small_s0_policy.pt"
       },
       {
         "agent": "classical",
@@ -21739,7 +21740,7 @@
           0.0,
           0.0
         ],
-        "elapsed_sec": 14.342384815216064,
+        "elapsed_sec": 14.311179399490356,
         "episodes_run": 4000,
         "params": 72,
         "seed": 1,
@@ -21928,8 +21929,8 @@
         "best_eval_during_training": 19.1,
         "best_mean_100": 23.98,
         "arm": "classical-small",
-        "wall_sec": 14.6298189163208,
-        "checkpoint": "nlayer5-no-rwshp/classical-small_s1_policy.pt"
+        "wall_sec": 14.598451375961304,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical-small_s1_policy.pt"
       },
       {
         "agent": "classical",
@@ -25935,7 +25936,7 @@
           0.0,
           0.0
         ],
-        "elapsed_sec": 23.3241069316864,
+        "elapsed_sec": 23.350857496261597,
         "episodes_run": 4000,
         "params": 72,
         "seed": 2,
@@ -26164,8 +26165,8 @@
         "best_eval_during_training": 117.6,
         "best_mean_100": 85.5,
         "arm": "classical-small",
-        "wall_sec": 23.98306703567505,
-        "checkpoint": "nlayer5-no-rwshp/classical-small_s2_policy.pt"
+        "wall_sec": 24.005225896835327,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical-small_s2_policy.pt"
       },
       {
         "agent": "classical",
@@ -28545,7 +28546,7 @@
           0.0,
           0.0
         ],
-        "elapsed_sec": 36.12585163116455,
+        "elapsed_sec": 36.15762710571289,
         "episodes_run": 2374,
         "params": 72,
         "seed": 3,
@@ -28826,8 +28827,8 @@
         "best_eval_during_training": 478.4,
         "best_mean_100": 139.32,
         "arm": "classical-small",
-        "wall_sec": 38.41660261154175,
-        "checkpoint": "nlayer5-no-rwshp/classical-small_s3_policy.pt"
+        "wall_sec": 38.44692277908325,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical-small_s3_policy.pt"
       },
       {
         "agent": "classical",
@@ -30755,7 +30756,7 @@
           188.2609594464302,
           0.0
         ],
-        "elapsed_sec": 38.31908321380615,
+        "elapsed_sec": 38.138474225997925,
         "episodes_run": 1922,
         "params": 72,
         "seed": 4,
@@ -31036,8 +31037,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 343.07,
         "arm": "classical-small",
-        "wall_sec": 40.437490940093994,
-        "checkpoint": "nlayer5-no-rwshp/classical-small_s4_policy.pt"
+        "wall_sec": 40.23273730278015,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical-small_s4_policy.pt"
       },
       {
         "agent": "classical",
@@ -35043,7 +35044,7 @@
           0.0,
           1276.694932937622
         ],
-        "elapsed_sec": 14.084721803665161,
+        "elapsed_sec": 13.914656400680542,
         "episodes_run": 4000,
         "params": 72,
         "seed": 5,
@@ -35232,8 +35233,8 @@
         "best_eval_during_training": 30.4,
         "best_mean_100": 24.42,
         "arm": "classical-small",
-        "wall_sec": 14.618198156356812,
-        "checkpoint": "nlayer5-no-rwshp/classical-small_s5_policy.pt"
+        "wall_sec": 14.441374778747559,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical-small_s5_policy.pt"
       },
       {
         "agent": "classical",
@@ -39239,7 +39240,7 @@
           0.0,
           0.0
         ],
-        "elapsed_sec": 27.28911304473877,
+        "elapsed_sec": 27.150230169296265,
         "episodes_run": 4000,
         "params": 72,
         "seed": 6,
@@ -39484,8 +39485,8 @@
         "best_eval_during_training": 444.9,
         "best_mean_100": 141.36,
         "arm": "classical-small",
-        "wall_sec": 29.259889602661133,
-        "checkpoint": "nlayer5-no-rwshp/classical-small_s6_policy.pt"
+        "wall_sec": 29.14985489845276,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical-small_s6_policy.pt"
       },
       {
         "agent": "classical",
@@ -43491,7 +43492,7 @@
           0.0,
           0.0
         ],
-        "elapsed_sec": 21.134634017944336,
+        "elapsed_sec": 20.86408233642578,
         "episodes_run": 4000,
         "params": 72,
         "seed": 7,
@@ -43712,8 +43713,8 @@
         "best_eval_during_training": 128.4,
         "best_mean_100": 48.65,
         "arm": "classical-small",
-        "wall_sec": 22.15127396583557,
-        "checkpoint": "nlayer5-no-rwshp/classical-small_s7_policy.pt"
+        "wall_sec": 21.875656604766846,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical-small_s7_policy.pt"
       },
       {
         "agent": "classical",
@@ -47719,7 +47720,7 @@
           0.0,
           0.0
         ],
-        "elapsed_sec": 14.156366348266602,
+        "elapsed_sec": 13.978322982788086,
         "episodes_run": 4000,
         "params": 72,
         "seed": 8,
@@ -47908,8 +47909,8 @@
         "best_eval_during_training": 113.9,
         "best_mean_100": 24.47,
         "arm": "classical-small",
-        "wall_sec": 14.810295581817627,
-        "checkpoint": "nlayer5-no-rwshp/classical-small_s8_policy.pt"
+        "wall_sec": 14.62799620628357,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical-small_s8_policy.pt"
       },
       {
         "agent": "classical",
@@ -51915,7 +51916,7 @@
           0.0,
           0.0
         ],
-        "elapsed_sec": 14.530614852905273,
+        "elapsed_sec": 14.386551856994629,
         "episodes_run": 4000,
         "params": 72,
         "seed": 9,
@@ -52104,8 +52105,8 @@
         "best_eval_during_training": 64.4,
         "best_mean_100": 22.01,
         "arm": "classical-small",
-        "wall_sec": 14.99311876296997,
-        "checkpoint": "nlayer5-no-rwshp/classical-small_s9_policy.pt"
+        "wall_sec": 14.844841480255127,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/classical-small_s9_policy.pt"
       }
     ],
     "quantum": [
@@ -52539,7 +52540,7 @@
           1.3093797503970563,
           1.3488599647535011
         ],
-        "elapsed_sec": 834.7966461181641,
+        "elapsed_sec": 833.2196633815765,
         "episodes_run": 426,
         "params": 70,
         "seed": 0,
@@ -52820,8 +52821,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 473.77,
         "arm": "quantum",
-        "wall_sec": 894.4147341251373,
-        "checkpoint": "nlayer5-no-rwshp/quantum_s0_policy.pt"
+        "wall_sec": 892.3009462356567,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum_s0_policy.pt"
       },
       {
         "agent": "quantum",
@@ -53200,7 +53201,7 @@
           0.7549797068495536,
           0.7689780436485307
         ],
-        "elapsed_sec": 776.0439417362213,
+        "elapsed_sec": 782.9296972751617,
         "episodes_run": 373,
         "params": 70,
         "seed": 1,
@@ -53469,8 +53470,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 477.51,
         "arm": "quantum",
-        "wall_sec": 835.8022105693817,
-        "checkpoint": "nlayer5-no-rwshp/quantum_s1_policy.pt"
+        "wall_sec": 842.0410356521606,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum_s1_policy.pt"
       },
       {
         "agent": "quantum",
@@ -53984,7 +53985,7 @@
           1.4423877784865908,
           1.3993792189867236
         ],
-        "elapsed_sec": 765.178111076355,
+        "elapsed_sec": 766.2190454006195,
         "episodes_run": 508,
         "params": 70,
         "seed": 2,
@@ -54265,8 +54266,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 325.46,
         "arm": "quantum",
-        "wall_sec": 824.5137906074524,
-        "checkpoint": "nlayer5-no-rwshp/quantum_s2_policy.pt"
+        "wall_sec": 824.9660429954529,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum_s2_policy.pt"
       },
       {
         "agent": "quantum",
@@ -54718,7 +54719,7 @@
           1.0827514620614238,
           0.964160111558158
         ],
-        "elapsed_sec": 814.6312799453735,
+        "elapsed_sec": 803.455176115036,
         "episodes_run": 446,
         "params": 70,
         "seed": 3,
@@ -54999,8 +55000,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 413.8,
         "arm": "quantum",
-        "wall_sec": 873.6899285316467,
-        "checkpoint": "nlayer5-no-rwshp/quantum_s3_policy.pt"
+        "wall_sec": 862.0084013938904,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum_s3_policy.pt"
       },
       {
         "agent": "quantum",
@@ -55461,7 +55462,7 @@
           0.0,
           1.106726505473489
         ],
-        "elapsed_sec": 814.0297725200653,
+        "elapsed_sec": 791.7286837100983,
         "episodes_run": 455,
         "params": 70,
         "seed": 4,
@@ -55742,8 +55743,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 443.56,
         "arm": "quantum",
-        "wall_sec": 873.5282442569733,
-        "checkpoint": "nlayer5-no-rwshp/quantum_s4_policy.pt"
+        "wall_sec": 850.6838550567627,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum_s4_policy.pt"
       },
       {
         "agent": "quantum",
@@ -56037,7 +56038,7 @@
           1.6711227899650112,
           1.5554094812832773
         ],
-        "elapsed_sec": 465.16266655921936,
+        "elapsed_sec": 450.96178340911865,
         "episodes_run": 288,
         "params": 70,
         "seed": 5,
@@ -56246,8 +56247,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 475.98,
         "arm": "quantum",
-        "wall_sec": 524.6796214580536,
-        "checkpoint": "nlayer5-no-rwshp/quantum_s5_policy.pt"
+        "wall_sec": 509.7095305919647,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum_s5_policy.pt"
       },
       {
         "agent": "quantum",
@@ -56775,7 +56776,7 @@
           1.6325061122188345,
           1.718865524744615
         ],
-        "elapsed_sec": 773.814432144165,
+        "elapsed_sec": 765.6976549625397,
         "episodes_run": 522,
         "params": 70,
         "seed": 6,
@@ -57056,8 +57057,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 363.51,
         "arm": "quantum",
-        "wall_sec": 832.0444917678833,
-        "checkpoint": "nlayer5-no-rwshp/quantum_s6_policy.pt"
+        "wall_sec": 823.0385746955872,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum_s6_policy.pt"
       },
       {
         "agent": "quantum",
@@ -57395,7 +57396,7 @@
           1.3862446359707974,
           1.3663506404845975
         ],
-        "elapsed_sec": 478.2236385345459,
+        "elapsed_sec": 475.1650450229645,
         "episodes_run": 332,
         "params": 70,
         "seed": 7,
@@ -57608,8 +57609,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 475.09,
         "arm": "quantum",
-        "wall_sec": 536.721164226532,
-        "checkpoint": "nlayer5-no-rwshp/quantum_s7_policy.pt"
+        "wall_sec": 532.3956289291382,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum_s7_policy.pt"
       },
       {
         "agent": "quantum",
@@ -58044,7 +58045,7 @@
           1.0584139870770741,
           1.0423233323381282
         ],
-        "elapsed_sec": 828.7226889133453,
+        "elapsed_sec": 818.519305229187,
         "episodes_run": 429,
         "params": 70,
         "seed": 8,
@@ -58325,8 +58326,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 404.34,
         "arm": "quantum",
-        "wall_sec": 887.0881414413452,
-        "checkpoint": "nlayer5-no-rwshp/quantum_s8_policy.pt"
+        "wall_sec": 875.8237285614014,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum_s8_policy.pt"
       },
       {
         "agent": "quantum",
@@ -58850,7 +58851,7 @@
           1.7840285217389464,
           1.8626532915513963
         ],
-        "elapsed_sec": 758.6875596046448,
+        "elapsed_sec": 770.2892818450928,
         "episodes_run": 518,
         "params": 70,
         "seed": 9,
@@ -59131,8 +59132,8 @@
         "best_eval_during_training": 444.6,
         "best_mean_100": 358.82,
         "arm": "quantum",
-        "wall_sec": 807.9849426746368,
-        "checkpoint": "nlayer5-no-rwshp/quantum_s9_policy.pt"
+        "wall_sec": 818.0619084835052,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum_s9_policy.pt"
       }
     ],
     "quantum-noisy": [
@@ -59752,7 +59753,7 @@
           7.030293468385935,
           7.131333420053124
         ],
-        "elapsed_sec": 818.972254037857,
+        "elapsed_sec": 730.9371812343597,
         "episodes_run": 612,
         "params": 70,
         "seed": 0,
@@ -60033,8 +60034,8 @@
         "best_eval_during_training": 408.4,
         "best_mean_100": 319.28,
         "arm": "quantum-noisy",
-        "wall_sec": 866.9745061397552,
-        "checkpoint": "nlayer5-no-rwshp/quantum-noisy_s0_policy.pt"
+        "wall_sec": 775.0468490123749,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum-noisy_s0_policy.pt"
       },
       {
         "agent": "quantum",
@@ -60678,7 +60679,7 @@
           0.0,
           0.0
         ],
-        "elapsed_sec": 757.0606622695923,
+        "elapsed_sec": 708.5666403770447,
         "episodes_run": 638,
         "params": 70,
         "seed": 1,
@@ -60959,8 +60960,8 @@
         "best_eval_during_training": 371.4,
         "best_mean_100": 314.8,
         "arm": "quantum-noisy",
-        "wall_sec": 799.2471017837524,
-        "checkpoint": "nlayer5-no-rwshp/quantum-noisy_s1_policy.pt"
+        "wall_sec": 748.0622336864471,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum-noisy_s1_policy.pt"
       },
       {
         "agent": "quantum",
@@ -61578,7 +61579,7 @@
           0.0,
           7.14384475722909
         ],
-        "elapsed_sec": 775.9921469688416,
+        "elapsed_sec": 722.1519865989685,
         "episodes_run": 612,
         "params": 70,
         "seed": 2,
@@ -61859,8 +61860,8 @@
         "best_eval_during_training": 469.0,
         "best_mean_100": 367.07,
         "arm": "quantum-noisy",
-        "wall_sec": 830.0607361793518,
-        "checkpoint": "nlayer5-no-rwshp/quantum-noisy_s2_policy.pt"
+        "wall_sec": 772.0986063480377,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum-noisy_s2_policy.pt"
       },
       {
         "agent": "quantum",
@@ -62478,7 +62479,7 @@
           0.0,
           0.0
         ],
-        "elapsed_sec": 752.0914776325226,
+        "elapsed_sec": 696.0079913139343,
         "episodes_run": 612,
         "params": 70,
         "seed": 3,
@@ -62759,8 +62760,8 @@
         "best_eval_during_training": 404.1,
         "best_mean_100": 292.61,
         "arm": "quantum-noisy",
-        "wall_sec": 800.2786135673523,
-        "checkpoint": "nlayer5-no-rwshp/quantum-noisy_s3_policy.pt"
+        "wall_sec": 740.2433061599731,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum-noisy_s3_policy.pt"
       },
       {
         "agent": "quantum",
@@ -63418,7 +63419,7 @@
           7.2363835871219635,
           7.058685582131147
         ],
-        "elapsed_sec": 745.555924654007,
+        "elapsed_sec": 687.8294997215271,
         "episodes_run": 652,
         "params": 70,
         "seed": 4,
@@ -63699,8 +63700,8 @@
         "best_eval_during_training": 421.1,
         "best_mean_100": 295.75,
         "arm": "quantum-noisy",
-        "wall_sec": 799.0005762577057,
-        "checkpoint": "nlayer5-no-rwshp/quantum-noisy_s4_policy.pt"
+        "wall_sec": 737.0581765174866,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum-noisy_s4_policy.pt"
       },
       {
         "agent": "quantum",
@@ -64275,7 +64276,7 @@
           7.264729302376509,
           7.150346830487251
         ],
-        "elapsed_sec": 748.7812752723694,
+        "elapsed_sec": 713.864812374115,
         "episodes_run": 569,
         "params": 70,
         "seed": 5,
@@ -64556,8 +64557,8 @@
         "best_eval_during_training": 467.0,
         "best_mean_100": 355.74,
         "arm": "quantum-noisy",
-        "wall_sec": 800.3121919631958,
-        "checkpoint": "nlayer5-no-rwshp/quantum-noisy_s5_policy.pt"
+        "wall_sec": 764.2269294261932,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum-noisy_s5_policy.pt"
       },
       {
         "agent": "quantum",
@@ -65245,7 +65246,7 @@
           6.762334659695625,
           6.646170701831579
         ],
-        "elapsed_sec": 666.9437873363495,
+        "elapsed_sec": 680.0995020866394,
         "episodes_run": 682,
         "params": 70,
         "seed": 6,
@@ -65526,8 +65527,8 @@
         "best_eval_during_training": 348.2,
         "best_mean_100": 254.92,
         "arm": "quantum-noisy",
-        "wall_sec": 696.4823253154755,
-        "checkpoint": "nlayer5-no-rwshp/quantum-noisy_s6_policy.pt"
+        "wall_sec": 710.0532457828522,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum-noisy_s6_policy.pt"
       },
       {
         "agent": "quantum",
@@ -66149,7 +66150,7 @@
           7.250959891825914,
           7.360056448727846
         ],
-        "elapsed_sec": 692.6248602867126,
+        "elapsed_sec": 705.6769411563873,
         "episodes_run": 616,
         "params": 70,
         "seed": 7,
@@ -66430,8 +66431,8 @@
         "best_eval_during_training": 500.0,
         "best_mean_100": 394.8,
         "arm": "quantum-noisy",
-        "wall_sec": 746.4674260616302,
-        "checkpoint": "nlayer5-no-rwshp/quantum-noisy_s7_policy.pt"
+        "wall_sec": 759.2135138511658,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum-noisy_s7_policy.pt"
       },
       {
         "agent": "quantum",
@@ -67120,7 +67121,7 @@
           7.479292593896389,
           7.406449278816581
         ],
-        "elapsed_sec": 693.1950089931488,
+        "elapsed_sec": 667.766916513443,
         "episodes_run": 683,
         "params": 70,
         "seed": 8,
@@ -67401,8 +67402,8 @@
         "best_eval_during_training": 438.6,
         "best_mean_100": 314.85,
         "arm": "quantum-noisy",
-        "wall_sec": 742.9413449764252,
-        "checkpoint": "nlayer5-no-rwshp/quantum-noisy_s8_policy.pt"
+        "wall_sec": 717.252359867096,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum-noisy_s8_policy.pt"
       },
       {
         "agent": "quantum",
@@ -68145,7 +68146,7 @@
           6.193906407803297,
           6.240261193364859
         ],
-        "elapsed_sec": 657.3225908279419,
+        "elapsed_sec": 652.5974514484406,
         "episodes_run": 737,
         "params": 70,
         "seed": 9,
@@ -68426,8 +68427,8 @@
         "best_eval_during_training": 328.6,
         "best_mean_100": 234.42,
         "arm": "quantum-noisy",
-        "wall_sec": 681.4510824680328,
-        "checkpoint": "nlayer5-no-rwshp/quantum-noisy_s9_policy.pt"
+        "wall_sec": 676.6077930927277,
+        "checkpoint": "/home/grantc/workspace/qiskit-drl-vqc/results_drl/nlayer5-no-rwshp/quantum-noisy_s9_policy.pt"
       }
     ]
   }

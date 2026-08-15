@@ -14,34 +14,81 @@ on a free IBM Quantum account.
 
 ## Results
 
-Ten seeds, 100,000 environment steps each, `--n-layers 5`, reward shaping on.
-"Solved" means the **greedy** policy (ε=0) averaged ≥475 over 100 unseen
-episodes. Committed under `results_drl/nlayer5/`.
+Ten seeds per cell, 100,000 environment steps each. "Solved" means the
+**greedy** policy (ε=0) averaged ≥475 over 100 unseen episodes. The
+`classical-small` arm is sized per depth to hold *just more* parameters than
+the circuit it is matched against, so the classical net is never the smaller of
+the two. Committed under `results_drl/nlayer<N>[-no-rwshp]/`.
 
-| Arm | Params | Median | Mean | Min | Max | Solved | Wall |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| `classical` | 1,282 | 500.0 | 499.7 | 497 | 500 | **10/10** | 28 s |
-| `classical-small` | 72 | 500.0 | 480.5 | 305 | 500 | **9/10** | 32 s |
-| `quantum` | 70 | 497.2 | 493.7 | 472 | 500 | **9/10** | 643 s |
-| `quantum-noisy` | 70 | 83.5 | 88.0 | 29 | 142 | 0/10 | 646 s |
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="results_drl/shaping_robustness-dark.png">
+  <img alt="Seeds solved out of 10, by VQC depth, with and without reward shaping. With shaping the parameter-matched MLP solves 10 of 10 at every depth and the circuit reaches at most 9. Without shaping the circuit holds 8-9 at depths 2, 3 and 5 while the matched MLP falls to 0-2." src="results_drl/shaping_robustness-light.png">
+</picture>
 
-**The headline:** a 70-parameter quantum circuit solves CartPole as reliably as
-a parameter-matched 72-parameter classical net (9/10 each), and both match the
-18x larger conventional baseline. The quantum arm costs ~20x more wall-clock to
-train, and finite-shot measurement noise destroys it outright.
+**The circuit's advantage is robustness to reward design, not parameter
+efficiency.**
 
-At `--n-layers 3` the quantum arm is both smaller and better — 46 parameters,
-median 499.8, **10/10 solved** — so depth 5 is not where its advantage lies.
-Sweeps for n-layers 1, 2, 3, and 5, with and without reward shaping, are
-committed under `results_drl/nlayer<N>[-no-rwshp]/`, each with a
-`benchmark.json` and a `benchmark_curves.png`. Per-seed checkpoints, plots and
-GIFs are regeneratable and gitignored — rerun `run_experiment.py` to recreate
-them.
+- **With** a dense hand-designed reward, the parameter-matched MLP wins
+  outright: 10/10 seeds at every depth, against at most 9/10 for the circuit.
+  There is no parameter-efficiency story — at equal budget the MLP is better.
+- **Without** it, on CartPole's bare +1-per-step, the ranking inverts: the
+  circuit holds 9/10 at depths 3 and 5 and 8/10 at depth 2, while the
+  size-matched MLP collapses to 0–2/10.
+- The oversized `classical` baseline (1,282 parameters, in the table below —
+  left out of the figure, where it solves nearly everything and flattens the
+  axis) barely notices the change: 10/10 → 9/10. So shaping-independence isn't
+  unique to the circuit. It is what the *small* MLP lacks and raw capacity buys
+  back; the circuit gets it at 70 parameters instead of 1,282.
 
-Reward shaping is not uniformly good: `quantum-noisy` scores a median 415.3
-without it versus 83.5 with it, while `classical-small` moves the opposite way
-(123.3 without, 500.0 with). Compare `nlayer5/` against `nlayer5-no-rwshp/`
-before assuming it helps.
+### What that looks like during training
+
+![Training reward and greedy evaluation over training, depth 5, no reward shaping. The quantum arm rises early and holds near 500 for the rest of training. The classical baseline spikes above the solve bar, then collapses to roughly 100-200 and oscillates. classical-small never leaves the floor.](results_drl/nlayer5-no-rwshp/benchmark_curves.png)
+
+Unshaped at depth 5, the right-hand panel is the one to read — it tracks the
+greedy policy, which is what "solved" is judged on. The circuit climbs and then
+**stays** there — its median curve never drops below 321 over the last 40k
+steps. The classical baseline reaches the bar and then destroys its own policy,
+its median falling to 88 and never recovering past 320.
+
+That difference is masked by the headline numbers, because training restores
+the best checkpoint before the final measurement. Median greedy evaluation at
+the *end* of training, against the reported score:
+
+| Arm | Median final eval | Median reported | Seeds rescued by checkpoint restore |
+|---|---:|---:|---:|
+| `quantum` | 472 | 500 | 4/10 |
+| `classical` | 130 | 500 | 6/10 |
+| `classical-small` | 9 | 123 | 2/10 |
+
+So `classical`'s 9/10 unshaped is real but fragile — it is largely the
+best-checkpoint machinery recovering a policy the run had already thrown away.
+The circuit is still near the bar when training stops.
+
+### Depth 5 in detail
+
+| Arm | Params | Median | Mean | Min | Max | Solved | Steps | Wall |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `classical` | 1,282 | 500.0 | 500.0 | 500 | 500 | **10/10** | 56,604 | 28 s |
+| `classical-small` | 72 | 500.0 | 500.0 | 500 | 500 | **10/10** | 67,300 | 29 s |
+| `quantum` | 70 | 498.1 | 492.5 | 471 | 500 | 9/10 | 79,448 | 698 s |
+| `quantum-noisy` | 70 | 356.9 | 344.3 | 205 | 498 | 1/10 | 100,190 | 726 s |
+
+Three caveats worth carrying:
+
+- **Shot noise degrades, it doesn't destroy.** `quantum-noisy` holds a median
+  357 shaped and 415 unshaped — far above a random policy — but clears the
+  solve bar on at most 1 seed in 10.
+- **Depth 1 is unusable** (0/10 in both conditions), so the useful range is
+  depths 2–5.
+- **Training cost is the circuit's real price:** ~25x the classical
+  wall-clock. It also trains on more steps, because arms stop on the solve
+  criterion rather than at a common step count — the `steps` column makes that
+  visible.
+
+Regenerate everything with `run_sweep.py` and this figure with
+`plot_robustness.py`. Each cell directory also holds a `benchmark_curves.png`
+(median training curve, inter-seed spread shaded, legend annotated with
+parameter count and depth).
 
 ## Quickstart
 
@@ -112,7 +159,7 @@ under identical conditions:
 | Arm | Network | Params (n-layers=5) | What it shows |
 |---|---|---:|---|
 | `classical` | MLP, hidden=(32,32) | 1,282 | The conventional, deliberately oversized baseline |
-| `classical-small` | MLP, hidden=(10,) | 72 | The **honest** like-for-like comparison — parameter-matched to the quantum arm |
+| `classical-small` | MLP, hidden=(10,) | 72 | The **honest** like-for-like comparison — auto-sized per depth to just exceed the circuit |
 | `quantum` | VQC, exact statevector | 70 | The quantum circuit on an exact (noise-free) simulator |
 | `quantum-noisy` | VQC + finite-shot sampling | 70 | The same circuit under measurement noise — what shot noise costs |
 | `ibm` *(opt-in)* | trained `quantum` checkpoint | 70 | Deployment evidence: the frozen policy replayed on a real QPU |
@@ -124,6 +171,20 @@ noise, still on a simulator (no QPU time spent). `ibm` is the only arm that
 doesn't train.
 
 For the quantum arms, "layers" is `--n-layers` (VQC depth), not an MLP width.
+
+`classical-small`'s width is **not fixed** — `run_experiment.py` derives it from
+`--n-layers` as the narrowest hidden layer whose parameter count just exceeds
+that depth's circuit, and prints the pairing at startup. Sizing it below the
+VQC would hand the quantum arm exactly the advantage this arm exists to remove:
+
+| `--n-layers` | VQC params | `classical-small` | Params | Margin |
+|---:|---:|---|---:|---:|
+| 1 | 22 | hidden=(3,) | 23 | +1 |
+| 2 | 34 | hidden=(5,) | 37 | +3 |
+| 3 | 46 | hidden=(7,) | 51 | +5 |
+| 5 | 70 | hidden=(10,) | 72 | +2 |
+
+Pass `--classical-small-hidden` to pin it manually.
 
 ### Flags worth knowing
 
@@ -266,140 +327,18 @@ machine is almost always this.
 
 ## Running on real IBM Quantum hardware
 
-The `ibm` arm loads the already-trained `quantum` checkpoint and replays one
-greedy episode on IBM hardware, one Runtime Estimator job per environment step.
-It is deployment evidence, not a fifth training result — one capped episode
-isn't comparable to the local arms' full evaluation — which is why it's opt-in
-(`--arms ibm`) and requires exactly one seed. It does **not** train on
-hardware; the checkpoint's weights never change.
+The `ibm` arm doesn't train — it loads a trained `quantum` checkpoint and
+replays one greedy episode on a real QPU, one Runtime Estimator job per
+environment step. It is deployment evidence, not a fifth result: one capped
+episode isn't comparable to the local arms' full evaluation, so it's opt-in
+(`--arms ibm`) and needs exactly one seed.
 
-Everything below uses IBM's public, free-tier **IBM Quantum Platform**. No paid
-plan is required to run a handful of jobs.
+Setup uses IBM's free-tier Quantum Platform: credentials, saving the account
+locally, a zero-QPU-time dry run that validates transpilation, then the
+evaluation itself. There is also a manifest-reviewed pipeline if you want to
+inspect exactly what will be submitted before spending QPU time.
 
-### 1. Get credentials
-
-1. Create an account at IBM Quantum Platform and open the dashboard.
-2. Copy your **IBM Cloud API key**.
-3. Copy your **IBM Quantum instance CRN** (the free "open plan" instance works).
-
-Never commit these to source control — the setup below stores them outside the
-repo, in Qiskit's own account store.
-
-### 2. Install the Runtime client
-
-```bash
-pip install qiskit-ibm-runtime>=0.42   # already included via requirements.txt
-```
-
-### 3. Save the account locally
-
-Either run the GUI helper (a couple of dialog boxes, no terminal typing of
-secrets):
-
-```bash
-cd tools
-python setup_ibm_account.py
-```
-
-or save it directly in Python:
-
-```python
-from qiskit_ibm_runtime import QiskitRuntimeService
-
-QiskitRuntimeService.save_account(
-    channel="ibm_quantum_platform",
-    token="<your IBM Cloud API key>",
-    instance="<your instance CRN>",
-    name="cartpole-vqc",   # this project's account name; the scripts expect it
-    set_as_default=True,
-    overwrite=True,
-)
-```
-
-This writes to Qiskit's local account file (outside the repo), not to any file
-this project tracks — nothing secret ever touches Git.
-
-### 4. Verify the connection
-
-```bash
-cd tools
-python test_ibm_connection.py
-```
-
-Lists every operational QPU your account can reach (min 4 qubits) and picks the
-least-busy one. Status queries only — no Runtime job, no QPU time.
-
-### 5. (Optional) Validate the circuit against the backend, free
-
-```bash
-cd main
-python ibm_backend_inference.py
-```
-
-Builds the same parameterized circuit `VQCQNetwork` uses, transpiles it to the
-selected backend's native gate set (ISA), and confirms every input and weight
-parameter survives transpilation and that both action observables (`Z0Z1`,
-`Z2Z3`) map onto the physical qubit layout correctly. Still zero QPU time — a
-dry run that catches wiring bugs before you pay for hardware. It then offers to
-submit one real confirmation job if you want to go further.
-
-### 6. Run the hardware evaluation
-
-```bash
-cd main
-python run_experiment.py --arms ibm --seeds 10000 --ibm-max-steps 10 \
-  --ibm-backend ibm_marrakesh --ibm-account cartpole-vqc \
-  --ibm-checkpoint results/quantum_policy.pt \
-  --ibm-output results/ibm_cartpole_run.json
-```
-
-Loads `results/quantum_policy.pt` (train a `quantum` arm first, or use a
-committed checkpoint under `results_drl/`), submits one Runtime `EstimatorV2`
-job per environment step, selects `argmax(Q)`, and steps the real `CartPole-v1`
-environment with that action. It writes:
-
-- `results/ibm_cartpole_policy.pt` — copy of the frozen Torch checkpoint
-- `results/ibm_cartpole_run.json` — per-step job IDs, Q-values, and the
-  local-exact-vs-hardware agreement check
-- `results/ibm_cartpole_evaluation.png` — plotted alongside `torch_exact`
-  Q-values, since IBM Runtime doesn't run an optimizer or produce a training
-  loss
-
-Progress is saved after every submitted and completed step, so an interrupted
-run (queue wait, connection drop) resumes without resubmitting the pending job:
-
-```bash
-python run_experiment.py --arms ibm --seeds 10000 --ibm-max-steps 10 \
-  --ibm-output results/ibm_cartpole_run.json --ibm-resume
-```
-
-Pass a distinct `--ibm-output` per run — it refuses to overwrite an existing
-file, so a longer run doesn't clobber a shorter completed one.
-
-Because this is one capped episode while the local arms use many full
-evaluation episodes, its reward is not a fair ranking against the other arms —
-`run_experiment.py` prints a note to that effect whenever `ibm` is included.
-
-### A more rigorous alternative: the manifest-reviewed pipeline
-
-`run_ibm_cartpole.py` (used above) is the fast path. For a fully auditable
-trail — useful if you want to review exactly what will be submitted *before*
-any QPU time is spent — there's a four-stage pipeline instead, each stage
-writing a reviewable JSON manifest under `artifacts/ibm/`:
-
-```text
-evaluate_ibm_policy.py            # picks 2 high-margin states locally, zero IBM connection
-        |
-prepare_ibm_policy_submission.py  # connects, transpiles, writes a submission manifest — no job yet
-        |
-run_ibm_policy_evaluation.py      # submits/resumes the Runtime job from that reviewed manifest
-        |
-summarize_ibm_policy_evaluation.py  # turns the completed result into a report-ready summary
-```
-
-Each script's docstring explains its exact inputs/outputs; run with `--help`
-for full flag lists. `artifacts/ibm/README.md` explains the `core/` /
-`validation/` / `archive/` split of what these stages produce.
+**→ [docs/ibm_hardware.md](docs/ibm_hardware.md)** for the full walkthrough.
 
 ## Two bugs worth knowing about
 
@@ -430,6 +369,8 @@ field is named `terminated` here so the distinction is hard to reintroduce.
 | `main/torch_statevector.py` | Fast exact statevector executor used during training |
 | `main/torch_density.py` | Differentiable noisy (density-matrix) executor, calibrated from a real device |
 | `main/run_experiment.py` | The four-arm benchmark harness described above |
+| `main/run_sweep.py` | Regenerates every `results_drl/` cell (depths x shaping), in parallel |
+| `main/plot_robustness.py` | Renders the shaping-robustness figure at the top of this file |
 | `main/run_qiskit_sim.py` | Rehearses a trained checkpoint through actual Qiskit simulators |
 | `main/eval_shots.py` | Measures the cost of finite-shot sampling on a trained policy |
 | `main/watch.py` | Renders a trained checkpoint as an animated GIF |
@@ -443,12 +384,9 @@ field is named `terminated` here so the distinction is hard to reintroduce.
 | `tools/build_ibm_backend_report.py` | Builds a report from collected IBM artifacts |
 | `requirements.txt` | Pinned, verified-working dependency versions |
 | `mypy.ini` | Type-check config (per-package stub ignores for untyped Qiskit/reportlab) |
-| `docs/architecture.md` | Detailed VQC circuit design and gradient-safety rationale |
-| `docs/ibm_integration_log.md` | Narrative log of the IBM integration milestones |
-| `results_drl/` | Committed four-arm sweep results (JSON + plots) |
-| `artifacts/ibm/` | IBM hardware run manifests and evidence |
+| `docs/ibm_hardware.md` | Full IBM Quantum hardware walkthrough |
+| `results_drl/` | Committed sweep results (JSON, curves, robustness figure) |
 | `circuit_docs/` | Rendered circuit diagrams |
-| `legacy/` | Earlier teaching version of the VQC (`vqc_v0.py`) |
 
 ## License
 
