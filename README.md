@@ -362,31 +362,33 @@ field is named `terminated` here so the distinction is hard to reintroduce.
 
 ## Repository layout
 
-| Path | Purpose |
+Everything runs from `main/`; filenames below are relative to it.
+
+**The experiment**
+
+| File | Purpose |
 |---|---|
-| `main/cartpole_dqn.py` | The agent, training loop, and the `build_q_network` seam |
-| `main/vqc.py` | The VQC Q-network: circuit, encoding, observables, PyTorch wrapper |
-| `main/torch_statevector.py` | Fast exact statevector executor used during training |
-| `main/torch_density.py` | Differentiable noisy (density-matrix) executor, calibrated from a real device |
-| `main/run_experiment.py` | The four-arm benchmark harness described above |
-| `main/run_sweep.py` | Regenerates every `results_drl/` cell (depths x shaping), in parallel |
-| `main/plot_robustness.py` | Renders the shaping-robustness figure at the top of this file |
-| `main/run_qiskit_sim.py` | Rehearses a trained checkpoint through actual Qiskit simulators |
-| `main/eval_shots.py` | Measures the cost of finite-shot sampling on a trained policy |
-| `main/watch.py` | Renders a trained checkpoint as an animated GIF |
-| `main/vqc_checkpoint.py` | Loads a checkpoint into any execution backend |
-| `main/ibm_backend_inference.py` | Transpiles/validates the VQC for an IBM backend, no QPU time |
-| `main/run_ibm_cartpole.py` | Fast-path hardware evaluation (used by `run_experiment.py --arms ibm`) |
-| `main/{evaluate_ibm_policy,prepare_ibm_policy_submission,run_ibm_policy_evaluation,summarize_ibm_policy_evaluation}.py` | The manifest-reviewed hardware pipeline |
-| `main/test_interface.py` | Contract check — run before dropping in a new network |
-| `tools/setup_ibm_account.py` | GUI helper to save IBM Quantum credentials locally |
-| `tools/test_ibm_connection.py` | GUI helper to verify the saved account and list QPUs |
-| `tools/build_ibm_backend_report.py` | Builds a report from collected IBM artifacts |
-| `requirements.txt` | Pinned, verified-working dependency versions |
-| `mypy.ini` | Type-check config (per-package stub ignores for untyped Qiskit/reportlab) |
-| `docs/ibm_hardware.md` | Full IBM Quantum hardware walkthrough |
-| `results_drl/` | Committed sweep results (JSON, curves, robustness figure) |
-| `circuit_docs/` | Rendered circuit diagrams |
+| `cartpole_dqn.py` | Agent, training loop, and the `build_q_network` seam |
+| `vqc.py` | The VQC Q-network: circuit, encoding, observables, wrapper |
+| `torch_statevector.py` | Fast exact statevector executor used during training |
+| `torch_density.py` | Differentiable noisy density-matrix executor |
+| `run_experiment.py` | The four-arm benchmark harness |
+| `run_sweep.py` | Regenerates every `results_drl/` cell, in parallel |
+| `plot_robustness.py` | Renders the robustness figure at the top of this file |
+| `test_interface.py` | Contract check — run before dropping in a new network |
+
+**Inspecting a checkpoint:** `watch.py` (animated GIF), `vqc_checkpoint.py`
+(load into any backend), `run_qiskit_sim.py` (replay through real Qiskit
+simulators), `eval_shots.py` (what finite-shot sampling costs).
+
+**IBM hardware:** `ibm_backend_inference.py` validates the circuit against a
+backend for free; `run_ibm_cartpole.py` is the fast path behind `--arms ibm`;
+`evaluate_`/`prepare_`/`run_`/`summarize_ibm_policy*.py` are the four stages of
+the manifest-reviewed pipeline. Credential helpers live in `../tools/`. Full
+walkthrough: **[docs/ibm_hardware.md](docs/ibm_hardware.md)**.
+
+**Data and config:** `../results_drl/` (committed sweeps), `../circuit_docs/`
+(circuit diagrams), `../requirements.txt`, `../mypy.ini`.
 
 ## License
 
